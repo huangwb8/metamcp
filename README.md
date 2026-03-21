@@ -46,6 +46,7 @@ English | [中文](./README_cn.md)
   - [🐳 Run with Docker Compose (Recommended)](#-run-with-docker-compose-recommended)
   - [📦 Build development environment with Dev Containers (VSCode/Cursor)](#-build-development-environment-with-dev-containers-vscodecursor)
   - [💻 Local Development](#-local-development)
+- [🐳 Release Images](#-release-images)
 - [🔌 MCP Protocol Compatibility](#-mcp-protocol-compatibility)
 - [🔗 Connect to MetaMCP](#-connect-to-metamcp)
   - [📝 E.g., Cursor via mcp.json](#-eg-cursor-via-mcpjson)
@@ -160,6 +161,13 @@ cp example.env .env
 docker compose up -d
 ```
 
+By default, `docker-compose.yml` pulls `ghcr.io/metatool-ai/metamcp:latest`. If you publish release images to Docker Hub for this fork, set `METAMCP_IMAGE` in `.env` before starting:
+
+```bash
+echo 'METAMCP_IMAGE=docker.io/<your-dockerhub-namespace>/metamcp:latest' >> .env
+docker compose up -d
+```
+
 If you modify APP_URL env vars, make sure you only access from the APP_URL, because MetaMCP enforces CORS policy on the URL, so no other URL is accessible.
 
 Note that the pg volume name may collide with your other pg dockers, which is global, consider rename it in `docker-compose.yml`:
@@ -203,6 +211,27 @@ Still recommend running postgres through docker for easy setup:
 pnpm install
 pnpm dev
 ```
+
+## 🐳 Release Images
+
+This fork now supports automatic Docker Hub publishing for GitHub Releases through [`.github/workflows/publish-release-images.yml`](./.github/workflows/publish-release-images.yml).
+
+- Trigger sources: a published GitHub Release, a manual workflow run, or a 12-hour backfill check.
+- Publish behavior: only missing Docker Hub tags are built and pushed, so reruns do not waste build time.
+- Stable semver release tags publish `${release-tag}`, the normalized semver tag (for example `1.2.3`), `major.minor`, `major`, and `latest`.
+- Pre-releases publish release-specific tags only and do not move `latest`.
+
+Configure the repository before enabling the workflow:
+
+- Repository Variables:
+  - `DOCKERHUB_IMAGE`: optional full image repository override such as `my-org/metamcp` (repository only, no `:tag`)
+  - `DOCKERHUB_NAMESPACE`: required when `DOCKERHUB_IMAGE` is not set
+  - `DOCKERHUB_REPOSITORY`: optional repository override; defaults to the GitHub repository name
+- Repository Secrets:
+  - `DOCKERHUB_USERNAME`: Docker Hub username
+  - `DOCKERHUB_TOKEN`: Docker Hub access token with push permission
+
+For local deployment, `docker-compose.yml` supports `METAMCP_IMAGE`, so you can switch from GHCR to the Docker Hub release image without editing the compose file.
 
 ## 🔌 MCP Protocol Compatibility
 

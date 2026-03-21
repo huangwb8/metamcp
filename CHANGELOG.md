@@ -12,12 +12,16 @@
 - 新增根目录 `tmp/`，用于集中存放测试日志、快照、抓包和临时输出等中间文件，并明确其内容可随时删除且不影响程序正常运行
 - 新增仓库级 `Vitest` 测试入口（`pnpm test` / `pnpm test:watch` / `pnpm test:coverage`），可直接从根目录运行 `tests/contracts/` 下的可复用契约测试
 - 新增首批仓库级契约测试，覆盖 MetaMCP 工具命名规则、函数式中间件组合、共享 Zod 协议、前端校验翻译与共享 config router 的鉴权/输入边界
+- 新增 Docker Hub 发布工作流 `.github/workflows/publish-release-images.yml`：以 GitHub Release 为发布源，支持即时触发、12 小时补偿检查、缺失标签探测和多架构镜像推送
+- 新增中英文版本/镜像发布说明文档，记录 Docker Hub 变量、Secrets、标签策略与本地切换方式
 
 ### Changed（变更）
 
 - 将 MCP 服务默认最大重试次数从 1 次提升到 3 次，并在连接层引入指数退避，降低冷启动时 `npx`/STDIO 服务被一次失败直接判死的概率
 - 调整后端启动预热流程：等待本地健康检查通过后再预热服务池，并以分批节流方式初始化 MCP servers，减少自引用 HTTP 服务和多 STDIO 并发拉起时的竞争
 - 更新 `AGENTS.md` 与 `CLAUDE.md` 协作约定，要求优先基于 `./tests` 验证改动，并将测试中间文件统一写入 `./tmp`
+- 更新 `docker-compose.yml` 与 `example.env`：为应用镜像新增 `METAMCP_IMAGE` 覆盖入口，在保留 GHCR 默认值的前提下支持无侵入切换到 Docker Hub release 镜像
+- 更新 `README.md`、`README_cn.md` 与 quickstart 文档：补充 Docker Hub 自动发布工作流、仓库配置要求和 compose 使用方式
 
 ### Fixed（修复）
 
@@ -25,6 +29,7 @@
 - 修复 MCP server 错误状态恢复链路不完整的问题；新增服务级手动重试接口和前端入口，无需再手动改数据库才能触发恢复
 - 修复 backend `vitest` 未解析 `@/` 路径别名导致测试无法运行的问题
 - 修复 `@repo/trpc` 在生成声明文件时无法解析 workspace `@repo/zod-types` 类型的问题，恢复共享路由包的稳定构建
+- 修复 Docker 镜像 OCI 元数据仍硬编码指向上游仓库的问题，改为支持按当前 fork 注入正确的 source/vendor 信息
 
 ## [1.0.0] - 2026-03-21
 

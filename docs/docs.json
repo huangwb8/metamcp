@@ -73,6 +73,7 @@
           {
             "group": "Development",
             "pages": [
+              "en/development/version-management",
               "en/development/contributing",
               "en/development/i18n",
               "en/development/architecture"
@@ -125,6 +126,7 @@
           {
             "group": "开发",
             "pages": [
+              "cn/development/version-management",
               "cn/development/contributing",
               "cn/development/i18n",
               "cn/development/architecture"

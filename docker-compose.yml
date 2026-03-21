@@ -1,7 +1,9 @@
 services:
   app:
     container_name: metamcp
-    image: ghcr.io/metatool-ai/metamcp:latest
+    # Default keeps GHCR for backward compatibility.
+    # Set METAMCP_IMAGE in .env to use your Docker Hub release image instead.
+    image: ${METAMCP_IMAGE:-ghcr.io/metatool-ai/metamcp:latest}
     pull_policy: always
     env_file:
       - .env

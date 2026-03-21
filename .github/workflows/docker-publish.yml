@@ -118,6 +118,9 @@ jobs:
         push: true
         tags: ${{ steps.meta-main.outputs.tags }}
         labels: ${{ steps.meta-main.outputs.labels }}
+        build-args: |
+          OCI_SOURCE=${{ github.server_url }}/${{ github.repository }}
+          OCI_VENDOR=${{ github.repository_owner }}
         cache-from: type=gha
         cache-to: type=gha,mode=max
 
@@ -131,6 +134,9 @@ jobs:
         push: true
         tags: ${{ steps.meta-test.outputs.tags }}
         labels: ${{ steps.meta-test.outputs.labels }}
+        build-args: |
+          OCI_SOURCE=${{ github.server_url }}/${{ github.repository }}
+          OCI_VENDOR=${{ github.repository_owner }}
         cache-from: type=gha
         cache-to: type=gha,mode=max
 
@@ -144,6 +150,9 @@ jobs:
         push: true
         tags: ${{ steps.meta-docker-per-mcp.outputs.tags }}
         labels: ${{ steps.meta-docker-per-mcp.outputs.labels }}
+        build-args: |
+          OCI_SOURCE=${{ github.server_url }}/${{ github.repository }}
+          OCI_VENDOR=${{ github.repository_owner }}
         cache-from: type=gha
         cache-to: type=gha,mode=max
 

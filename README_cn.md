@@ -42,6 +42,7 @@
 - [🚀 快速开始](#-快速开始)
   - [🐳 使用 Docker Compose 运行（推荐）](#-使用-docker-compose-运行推荐)
   - [💻 本地开发](#-本地开发)
+- [🐳 发布镜像](#-发布镜像)
 - [🔌 MCP 协议兼容性](#-mcp-协议兼容性)
 - [🔗 连接到 MetaMCP](#-连接到-metamcp)
   - [📝 例如，通过 mcp.json 连接 Cursor](#-例如通过-mcpjson-连接-cursor)
@@ -121,6 +122,13 @@ cp example.env .env
 docker compose up -d
 ```
 
+默认情况下，`docker-compose.yml` 会拉取 `ghcr.io/metatool-ai/metamcp:latest`。如果你已经为当前 fork 配好了 Docker Hub Release 镜像，可以在启动前先在 `.env` 里覆盖：
+
+```bash
+echo 'METAMCP_IMAGE=docker.io/<你的-dockerhub-namespace>/metamcp:latest' >> .env
+docker compose up -d
+```
+
 如果你修改了 APP_URL 环境变量，确保只从 APP_URL 访问，因为 MetaMCP 在该 URL 上强制执行 CORS 策略，其他 URL 无法访问。
 
 注意：pg 卷名可能与其他 pg docker 冲突（全局），可在 `docker-compose.yml` 中重命名：
@@ -139,6 +147,27 @@ volumes:
 pnpm install
 pnpm dev
 ```
+
+## 🐳 发布镜像
+
+当前 fork 已支持通过 [`.github/workflows/publish-release-images.yml`](./.github/workflows/publish-release-images.yml) 将 GitHub Release 自动发布到 Docker Hub。
+
+- 触发方式：发布 GitHub Release、手动执行 workflow，或每 12 小时自动补偿检查一次。
+- 发布行为：先探测 Docker Hub 是否缺失目标标签，只补推缺失标签，避免重复构建。
+- 稳定语义化版本的 release 会发布 `${release-tag}`、去掉 `v` 后的语义化版本号（如 `1.2.3`）、`major.minor`、`major` 和 `latest`。
+- 预发布版本只发布对应的 release 标签，不会推进 `latest`。
+
+启用该 workflow 前，请先配置仓库：
+
+- Repository Variables：
+  - `DOCKERHUB_IMAGE`：可选，完整镜像仓库名覆盖，例如 `my-org/metamcp`（只填仓库名，不要带 `:tag`）
+  - `DOCKERHUB_NAMESPACE`：当未设置 `DOCKERHUB_IMAGE` 时必填
+  - `DOCKERHUB_REPOSITORY`：可选，镜像仓库名覆盖；默认使用 GitHub 仓库名
+- Repository Secrets：
+  - `DOCKERHUB_USERNAME`：Docker Hub 用户名
+  - `DOCKERHUB_TOKEN`：具备推送权限的 Docker Hub Access Token
+
+本地部署时，`docker-compose.yml` 已支持 `METAMCP_IMAGE`，因此可以在不改 compose 文件的前提下，从 GHCR 切换到 Docker Hub release 镜像。
 
 ## 🔌 MCP 协议兼容性
 

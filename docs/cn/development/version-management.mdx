@@ -1,0 +1,55 @@
+---
+title: "版本与镜像发布"
+description: "说明当前 fork 如何将 GitHub Release 与 Docker Hub 镜像自动同步"
+---
+
+当前 fork 已支持基于 GitHub Release 的 Docker Hub 自动发布。
+
+## 发布流程
+
+1. 在仓库中创建并发布一个 GitHub Release。
+2. GitHub Actions workflow `publish-release-images` 解析 release tag。
+3. Workflow 会先探测 Docker Hub，只在目标标签缺失时才构建。
+4. 若标签缺失，则使用根目录的 `Dockerfile` 构建 `linux/amd64` 和 `linux/arm64` 镜像。
+5. 构建完成后推送 release 对应标签；`latest` 只跟随稳定版发布。
+
+## Workflow 触发方式
+
+- 发布 GitHub Release 后立即触发
+- 在 GitHub Actions 中手动触发 `workflow_dispatch`
+- 每 12 小时执行一次补偿 / 自愈检查
+
+## 需要配置的仓库项
+
+Repository Variables：
+
+- `DOCKERHUB_IMAGE`：可选，完整镜像仓库名覆盖，例如 `my-org/metamcp`（只填仓库名，不要带 `:tag`）
+- `DOCKERHUB_NAMESPACE`：当未设置 `DOCKERHUB_IMAGE` 时必填
+- `DOCKERHUB_REPOSITORY`：可选，镜像仓库名覆盖；默认使用 GitHub 仓库名
+
+Repository Secrets：
+
+- `DOCKERHUB_USERNAME`：Docker Hub 用户名
+- `DOCKERHUB_TOKEN`：具备推送权限的 Docker Hub Access Token
+
+## 标签策略
+
+对于稳定版发布 `v1.2.3`，workflow 会推送：
+
+- `v1.2.3`
+- `1.2.3`
+- `1.2`
+- `1`
+- `latest`
+
+对于预发布版本，workflow 只推送 release 对应标签，不会推进 `latest`。
+
+## 本地部署切换
+
+`docker-compose.yml` 为了兼容现有使用方式，默认仍然使用 GHCR 镜像。若要切换为 Docker Hub，只需在 `.env` 中设置：
+
+```bash
+METAMCP_IMAGE=docker.io/<你的-dockerhub-namespace>/metamcp:latest
+```
+
+这样就能在不修改 compose 文件的前提下切换镜像来源。

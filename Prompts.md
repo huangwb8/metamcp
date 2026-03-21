@@ -6,7 +6,7 @@
 
 # 日常
 
-请模仿 
+请模仿 /Volumes/2T01/winE/Starup/bensz-channel , 搞个自动化生成 docker image并推到 docker hub 官方的流程。  使用 [$awesome-code](/Users/bensz/.codex/skills/awesome-code/SKILL.md) 辅助规划、优化。所有问题都要解决。 如果工作时有疑问，或者有更好的方案，自己选个最优方案优化，不要问我。不要破坏其它功能。要保证最终成品能正常、稳定、高效地工作。 
 
 ---
 

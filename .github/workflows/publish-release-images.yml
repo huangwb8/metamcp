@@ -1,0 +1,276 @@
+name: Publish release Docker image to Docker Hub
+
+on:
+  release:
+    types:
+      - published
+  schedule:
+    - cron: "0 */12 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: publish-release-images
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Resolve release source
+        id: release
+        uses: actions/github-script@v7
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            if (context.eventName === 'release') {
+              const release = context.payload.release;
+
+              core.setOutput('found', 'true');
+              core.setOutput('tag', release.tag_name);
+              core.setOutput('url', release.html_url);
+              core.setOutput('prerelease', release.prerelease ? 'true' : 'false');
+              core.info(`Release event received for ${release.tag_name}`);
+              return;
+            }
+
+            try {
+              const { data } = await github.rest.repos.getLatestRelease({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+              });
+
+              core.setOutput('found', 'true');
+              core.setOutput('tag', data.tag_name);
+              core.setOutput('url', data.html_url);
+              core.setOutput('prerelease', data.prerelease ? 'true' : 'false');
+              core.info(`Latest published release detected: ${data.tag_name}`);
+            } catch (error) {
+              if (error.status === 404) {
+                core.setOutput('found', 'false');
+                core.setOutput('tag', '');
+                core.setOutput('url', '');
+                core.setOutput('prerelease', 'false');
+                core.info('No published GitHub release found. Skipping Docker Hub publish workflow.');
+                return;
+              }
+
+              throw error;
+            }
+
+      - name: Skip when no published release exists
+        if: steps.release.outputs.found != 'true'
+        run: echo 'No published GitHub release found. Nothing to publish.'
+
+      - name: Checkout latest release tag
+        if: steps.release.outputs.found == 'true'
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ steps.release.outputs.tag }}
+
+      - name: Capture checked-out revision
+        if: steps.release.outputs.found == 'true'
+        id: source
+        shell: bash
+        run: echo "revision=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+
+      - name: Resolve Docker Hub repository
+        if: steps.release.outputs.found == 'true'
+        id: image
+        shell: bash
+        env:
+          DOCKERHUB_IMAGE: ${{ vars.DOCKERHUB_IMAGE }}
+          DOCKERHUB_NAMESPACE: ${{ vars.DOCKERHUB_NAMESPACE }}
+          DOCKERHUB_REPOSITORY: ${{ vars.DOCKERHUB_REPOSITORY }}
+        run: |
+          set -euo pipefail
+
+          if [[ -n "${DOCKERHUB_IMAGE}" ]]; then
+            image="$(echo "${DOCKERHUB_IMAGE}" | tr '[:upper:]' '[:lower:]')"
+          else
+            if [[ -z "${DOCKERHUB_NAMESPACE}" ]]; then
+              echo '::error::Set `DOCKERHUB_IMAGE`, or configure `DOCKERHUB_NAMESPACE` (and optionally `DOCKERHUB_REPOSITORY`).'
+              exit 1
+            fi
+
+            namespace="$(echo "${DOCKERHUB_NAMESPACE}" | tr '[:upper:]' '[:lower:]')"
+            repository="$(echo "${DOCKERHUB_REPOSITORY:-${GITHUB_REPOSITORY#*/}}" | tr '[:upper:]' '[:lower:]')"
+            image="${namespace}/${repository}"
+          fi
+
+          if [[ "${image}" == *":"* || "${image}" == *@* ]]; then
+            echo '::error::`DOCKERHUB_IMAGE` must be an image repository name without tag or digest, for example `my-org/metamcp`.'
+            exit 1
+          fi
+
+          echo "name=${image}" >> "$GITHUB_OUTPUT"
+
+      - name: Resolve image tags
+        if: steps.release.outputs.found == 'true'
+        id: tags
+        shell: bash
+        env:
+          IMAGE_NAME: ${{ steps.image.outputs.name }}
+          RELEASE_TAG: ${{ steps.release.outputs.tag }}
+          RELEASE_PRERELEASE: ${{ steps.release.outputs.prerelease }}
+        run: |
+          set -euo pipefail
+
+          normalized_tag="${RELEASE_TAG#v}"
+          candidates=("${IMAGE_NAME}:${RELEASE_TAG}")
+
+          if [[ "${normalized_tag}" != "${RELEASE_TAG}" ]]; then
+            candidates+=("${IMAGE_NAME}:${normalized_tag}")
+          fi
+
+          if [[ "${normalized_tag}" =~ ^([0-9]+)\.([0-9]+)\.([0-9]+)$ ]]; then
+            candidates+=("${IMAGE_NAME}:${BASH_REMATCH[1]}.${BASH_REMATCH[2]}")
+            candidates+=("${IMAGE_NAME}:${BASH_REMATCH[1]}")
+            if [[ "${RELEASE_PRERELEASE}" != "true" ]]; then
+              candidates+=("${IMAGE_NAME}:latest")
+            fi
+          fi
+
+          declare -A seen=()
+          resolved=()
+
+          for tag in "${candidates[@]}"; do
+            if [[ -z "${seen[$tag]+x}" ]]; then
+              seen[$tag]=1
+              resolved+=("${tag}")
+            fi
+          done
+
+          {
+            echo 'tags<<EOF'
+            printf '%s\n' "${resolved[@]}"
+            echo 'EOF'
+          } >> "$GITHUB_OUTPUT"
+
+          echo "primary=${resolved[0]}" >> "$GITHUB_OUTPUT"
+
+      - name: Validate Docker Hub credentials
+        if: steps.release.outputs.found == 'true'
+        shell: bash
+        env:
+          DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
+          DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+
+          if [[ -z "${DOCKERHUB_USERNAME}" || -z "${DOCKERHUB_TOKEN}" ]]; then
+            echo '::error::Configure repository secrets `DOCKERHUB_USERNAME` and `DOCKERHUB_TOKEN` before running this workflow.'
+            exit 1
+          fi
+
+      - name: Log in to Docker Hub
+        if: steps.release.outputs.found == 'true'
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      - name: Probe Docker Hub tags for release
+        if: steps.release.outputs.found == 'true'
+        id: probe
+        shell: bash
+        env:
+          IMAGE_TAGS: ${{ steps.tags.outputs.tags }}
+        run: |
+          set -euo pipefail
+
+          should_build=false
+          missing_refs=()
+
+          while IFS= read -r tag; do
+            if [[ -z "${tag}" ]]; then
+              continue
+            fi
+
+            if docker manifest inspect "${tag}" >/dev/null 2>&1; then
+              echo "Found ${tag}"
+            else
+              echo "Missing ${tag}"
+              missing_refs+=("${tag}")
+              should_build=true
+            fi
+          done <<< "${IMAGE_TAGS}"
+
+          echo "should_build=${should_build}" >> "$GITHUB_OUTPUT"
+
+          if [[ ${#missing_refs[@]} -eq 0 ]]; then
+            echo 'missing_refs=none' >> "$GITHUB_OUTPUT"
+          else
+            echo "missing_refs=${missing_refs[*]}" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Skip when Docker Hub already has this release
+        if: steps.release.outputs.found == 'true' && steps.probe.outputs.should_build != 'true'
+        run: echo "Docker Hub already contains all expected tags for ${{ steps.release.outputs.tag }}. Skipping build."
+
+      - name: Set up Docker Buildx
+        if: steps.release.outputs.found == 'true' && steps.probe.outputs.should_build == 'true'
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build and push release image
+        if: steps.release.outputs.found == 'true' && steps.probe.outputs.should_build == 'true'
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: Dockerfile
+          platforms: linux/amd64,linux/arm64
+          push: true
+          tags: ${{ steps.tags.outputs.tags }}
+          labels: |
+            org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
+            org.opencontainers.image.revision=${{ steps.source.outputs.revision }}
+            org.opencontainers.image.version=${{ steps.release.outputs.tag }}
+            org.opencontainers.image.url=${{ steps.release.outputs.url }}
+          build-args: |
+            OCI_SOURCE=${{ github.server_url }}/${{ github.repository }}
+            OCI_VENDOR=${{ github.repository_owner }}
+          cache-from: type=gha,scope=release-metamcp
+          cache-to: type=gha,mode=max,scope=release-metamcp
+
+      - name: Write workflow summary
+        if: always()
+        shell: bash
+        env:
+          RELEASE_FOUND: ${{ steps.release.outputs.found }}
+          RELEASE_TAG: ${{ steps.release.outputs.tag }}
+          RELEASE_URL: ${{ steps.release.outputs.url }}
+          RELEASE_PRERELEASE: ${{ steps.release.outputs.prerelease }}
+          SOURCE_REVISION: ${{ steps.source.outputs.revision }}
+          IMAGE_NAME: ${{ steps.image.outputs.name }}
+          IMAGE_TAGS: ${{ steps.tags.outputs.tags }}
+          SHOULD_BUILD: ${{ steps.probe.outputs.should_build }}
+          MISSING_REFS: ${{ steps.probe.outputs.missing_refs }}
+        run: |
+          {
+            echo '## Docker Hub publish summary'
+
+            if [[ "${RELEASE_FOUND}" != 'true' ]]; then
+              echo '- No published GitHub release found.'
+              exit 0
+            fi
+
+            echo "- Release tag: ${RELEASE_TAG}"
+            echo "- Release URL: ${RELEASE_URL}"
+            echo "- Pre-release: ${RELEASE_PRERELEASE}"
+            echo "- Source revision: ${SOURCE_REVISION}"
+            echo "- Docker Hub image: ${IMAGE_NAME}"
+            echo '- Expected tags:'
+            while IFS= read -r tag; do
+              [[ -z "${tag}" ]] && continue
+              echo "  - ${tag}"
+            done <<< "${IMAGE_TAGS}"
+
+            if [[ "${SHOULD_BUILD}" == 'true' ]]; then
+              echo "- Action: built and pushed missing tags (${MISSING_REFS})"
+            else
+              echo '- Action: skipped because Docker Hub already contains all expected tags.'
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"
