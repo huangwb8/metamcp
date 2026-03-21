@@ -1,6 +1,16 @@
 # 基本
 
+- 使用 [$awesome-code](/Users/bensz/.codex/skills/awesome-code/SKILL.md) 辅助规划、优化。所有问题都要解决。 如果工作时有疑问，或者有更好的方案，自己选个最优方案优化，不要问我。不要破坏其它功能。要保证最终成品能正常、稳定、高效地工作。 
+
+  根据 docs/plans/SDK-沙箱机制-v202602231445.md， 使用 [$awesome-code](/Users/bensz/.codex/skills/awesome-code/SKILL.md) 优化代码，所有问题都要解决，所有意见都要落实。 如果工作时有疑问，或者有更好的方案，自己选个最优方案优化，不要问我。 不要破坏其它功能。 要保证最终成品能正常、稳定、高效地工作。 
+
 # 日常
+
+请模仿 
+
+---
+
+./tests里还没有真正的测试代码；请你根据本项目的实验情况写测试用代码。 使用 [$awesome-code](/Users/bensz/.codex/skills/awesome-code/SKILL.md) 辅助规划、优化。所有问题都要解决。 如果工作时有疑问，或者有更好的方案，自己选个最优方案优化，不要问我。不要破坏其它功能。要保证最终成品能正常、稳定、高效地工作。 
 
 ---
 

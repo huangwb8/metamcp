@@ -8,6 +8,9 @@ importers:
 
   .:
     devDependencies:
+      '@vitest/coverage-v8':
+        specifier: ^4.0.0
+        version: 4.0.15(vitest@4.0.15(@types/node@22.15.3)(jiti@2.4.2)(lightningcss@1.30.1)(tsx@4.20.3))
       dotenv-cli:
         specifier: ^8.0.0
         version: 8.0.0
@@ -20,6 +23,9 @@ importers:
       typescript:
         specifier: 5.8.2
         version: 5.8.2
+      vitest:
+        specifier: ^4.0.0
+        version: 4.0.15(@types/node@22.15.3)(jiti@2.4.2)(lightningcss@1.30.1)(tsx@4.20.3)
 
   apps/backend:
     dependencies:
@@ -5713,6 +5719,23 @@ snapshots:
     transitivePeerDependencies:
       - supports-color
 
+  '@vitest/coverage-v8@4.0.15(vitest@4.0.15(@types/node@22.15.3)(jiti@2.4.2)(lightningcss@1.30.1)(tsx@4.20.3))':
+    dependencies:
+      '@bcoe/v8-coverage': 1.0.2
+      '@vitest/utils': 4.0.15
+      ast-v8-to-istanbul: 0.3.8
+      istanbul-lib-coverage: 3.2.2
+      istanbul-lib-report: 3.0.1
+      istanbul-lib-source-maps: 5.0.6
+      istanbul-reports: 3.2.0
+      magicast: 0.5.1
+      obug: 2.1.1
+      std-env: 3.10.0
+      tinyrainbow: 3.0.3
+      vitest: 4.0.15(@types/node@22.15.3)(jiti@2.4.2)(lightningcss@1.30.1)(tsx@4.20.3)
+    transitivePeerDependencies:
+      - supports-color
+
   '@vitest/expect@4.0.15':
     dependencies:
       '@standard-schema/spec': 1.0.0
@@ -5737,7 +5760,6 @@ snapshots:
       magic-string: 0.30.21
     optionalDependencies:
       vite: 7.2.7(@types/node@22.15.3)(jiti@2.4.2)(lightningcss@1.30.1)(tsx@4.20.3)
-    optional: true
 
   '@vitest/pretty-format@4.0.15':
     dependencies:
@@ -8127,7 +8149,6 @@ snapshots:
       jiti: 2.4.2
       lightningcss: 1.30.1
       tsx: 4.20.3
-    optional: true
 
   vitest@4.0.15(@types/node@20.19.1)(jiti@2.4.2)(lightningcss@1.30.1)(tsx@4.20.3):
     dependencies:
@@ -8202,7 +8223,6 @@ snapshots:
       - terser
       - tsx
       - yaml
-    optional: true
 
   webidl-conversions@4.0.2: {}
 
