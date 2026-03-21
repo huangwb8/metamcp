@@ -211,6 +211,17 @@ export const GetMcpServerResponseSchema = z.object({
   message: z.string().optional(),
 });
 
+export const RetryMcpServerRequestSchema = z.object({
+  uuid: z.string().uuid(),
+});
+
+export const RetryMcpServerResponseSchema = z.object({
+  success: z.boolean(),
+  data: McpServerSchema.optional(),
+  message: z.string().optional(),
+  error: z.string().optional(),
+});
+
 // Bulk import schemas
 export const BulkImportMcpServerSchema = z
   .object({
@@ -298,6 +309,10 @@ export type BulkImportMcpServersRequest = z.infer<
 >;
 export type BulkImportMcpServersResponse = z.infer<
   typeof BulkImportMcpServersResponseSchema
+>;
+export type RetryMcpServerRequest = z.infer<typeof RetryMcpServerRequestSchema>;
+export type RetryMcpServerResponse = z.infer<
+  typeof RetryMcpServerResponseSchema
 >;
 
 export const DeleteMcpServerRequestSchema = z.object({

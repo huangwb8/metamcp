@@ -6,6 +6,8 @@ import {
   DeleteMcpServerResponseSchema,
   GetMcpServerResponseSchema,
   ListMcpServersResponseSchema,
+  RetryMcpServerRequestSchema,
+  RetryMcpServerResponseSchema,
   UpdateMcpServerRequestSchema,
   UpdateMcpServerResponseSchema,
 } from "@repo/zod-types";
@@ -35,6 +37,10 @@ export const createMcpServersRouter = (
       },
       userId: string,
     ) => Promise<z.infer<typeof GetMcpServerResponseSchema>>;
+    retry: (
+      input: z.infer<typeof RetryMcpServerRequestSchema>,
+      userId: string,
+    ) => Promise<z.infer<typeof RetryMcpServerResponseSchema>>;
     delete: (
       input: {
         uuid: string;
@@ -61,6 +67,14 @@ export const createMcpServersRouter = (
       .output(GetMcpServerResponseSchema)
       .query(async ({ input, ctx }) => {
         return await implementations.get(input, ctx.user.id);
+      }),
+
+    // Protected: Retry an MCP server connection and clear stale ERROR state
+    retry: protectedProcedure
+      .input(RetryMcpServerRequestSchema)
+      .output(RetryMcpServerResponseSchema)
+      .mutation(async ({ input, ctx }) => {
+        return await implementations.retry(input, ctx.user.id);
       }),
 
     // Protected: Create MCP server

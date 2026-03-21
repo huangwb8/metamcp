@@ -168,6 +168,8 @@
     "connecting": "연결 중...",
     "reconnect": "재연결",
     "connect": "연결",
+    "retryServerSuccess": "Server 재시도를 시작했습니다",
+    "retryServerError": "Server 재시도에 실패했습니다",
     "connectToManageTools": "MCP Server에 연결하여 Tool 관리",
     "connectingToServer": "MCP Server에 연결 중...",
     "toolsManagement": "Tool 관리",

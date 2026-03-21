@@ -1,7 +1,11 @@
 import express from "express";
 
 import { auth } from "./auth";
-import { initializeIdleServers, initializeOnStartup } from "./lib/startup";
+import {
+  initializeIdleServers,
+  initializeOnStartup,
+  waitForBackendReadiness,
+} from "./lib/startup";
 import mcpProxyRouter from "./routers/mcp-proxy";
 import oauthRouter from "./routers/oauth";
 import publicEndpointsRouter from "./routers/public-metamcp";
@@ -98,14 +102,24 @@ async function start(): Promise<void> {
     );
     console.log(`tRPC routes available at: http://localhost:12009/trpc`);
 
-    // Wait a moment for the server to be fully ready to handle incoming connections,
-    // then initialize idle servers (prevents connection errors when MCP servers connect back)
+    // Wait until the local health endpoint answers before initializing idle servers.
+    // This avoids self-referential STREAMABLE_HTTP servers racing the backend boot sequence.
     console.log(
-      "Waiting for server to be fully ready before initializing idle servers...",
+      "Waiting for backend readiness before initializing idle servers...",
     );
-    await new Promise((resolve) => setTimeout(resolve, 3000)).then(
-      initializeIdleServers,
-    );
+
+    const backendReady = await waitForBackendReadiness({
+      port: 12009,
+      path: "/health",
+    });
+
+    if (!backendReady) {
+      console.warn(
+        "⚠️ Backend health check did not turn ready in time, continuing with idle server initialization anyway.",
+      );
+    }
+
+    await initializeIdleServers();
   });
 }
 

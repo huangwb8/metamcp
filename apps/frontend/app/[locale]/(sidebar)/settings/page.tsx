@@ -37,7 +37,7 @@ export default function SettingsPage() {
     defaultValues: {
       mcpTimeout: 60000,
       mcpMaxTotalTimeout: 60000,
-      mcpMaxAttempts: 1,
+      mcpMaxAttempts: 3,
       sessionLifetime: null, // Default to infinite (null)
     },
   });

@@ -121,6 +121,29 @@ export function McpServersList({ onRefresh }: McpServersListProps) {
     },
   });
 
+  const retryServerMutation = trpc.frontend.mcpServers.retry.useMutation({
+    onSuccess: async (result) => {
+      if (!result.success) {
+        toast.error(t("mcp-servers:detail.retryServerError"), {
+          description:
+            result.message || t("mcp-servers:detail.retryServerError"),
+        });
+        return;
+      }
+
+      await utils.frontend.mcpServers.list.invalidate();
+      toast.success(t("mcp-servers:detail.retryServerSuccess"), {
+        description:
+          result.message || t("mcp-servers:detail.retryServerSuccess"),
+      });
+    },
+    onError: (mutationError) => {
+      toast.error(t("mcp-servers:detail.retryServerError"), {
+        description: mutationError.message,
+      });
+    },
+  });
+
   const servers = serversResponse?.success ? serversResponse.data : [];
 
   // Handle delete server
@@ -382,6 +405,12 @@ export function McpServersList({ onRefresh }: McpServersListProps) {
           setEditDialogOpen(true);
         };
 
+        const handleRetryClick = () => {
+          retryServerMutation.mutate({
+            uuid: server.uuid,
+          });
+        };
+
         return (
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
@@ -413,6 +442,12 @@ export function McpServersList({ onRefresh }: McpServersListProps) {
                 <Edit className="mr-2 h-4 w-4" />
                 {t("mcp-servers:editServer")}
               </DropdownMenuItem>
+              {server.error_status === McpServerErrorStatusEnum.Enum.ERROR && (
+                <DropdownMenuItem onClick={handleRetryClick}>
+                  <Server className="mr-2 h-4 w-4" />
+                  {t("mcp-servers:detail.retry")}
+                </DropdownMenuItem>
+              )}
               <DropdownMenuItem
                 className="text-red-600 focus:text-red-600"
                 onClick={handleDeleteClick}

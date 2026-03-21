@@ -135,6 +135,35 @@ export default function McpServerDetailPage({
     },
   });
 
+  const retryMutation = trpc.frontend.mcpServers.retry.useMutation({
+    onSuccess: async (result) => {
+      if (!result.success) {
+        toast.error(t("mcp-servers:detail.retryServerError"), {
+          description:
+            result.message || t("mcp-servers:detail.retryServerError"),
+        });
+        return;
+      }
+
+      await Promise.all([
+        utils.frontend.mcpServers.list.invalidate(),
+        utils.frontend.mcpServers.get.invalidate({ uuid }),
+      ]);
+
+      await refetch();
+
+      toast.success(t("mcp-servers:detail.retryServerSuccess"), {
+        description:
+          result.message || t("mcp-servers:detail.retryServerSuccess"),
+      });
+    },
+    onError: (mutationError) => {
+      toast.error(t("mcp-servers:detail.retryServerError"), {
+        description: mutationError.message,
+      });
+    },
+  });
+
   const server: McpServer | undefined = serverResponse?.success
     ? serverResponse.data
     : undefined;
@@ -189,7 +218,7 @@ export default function McpServerDetailPage({
   // Handle manual connect/disconnect
   const handleConnectionToggle = () => {
     if (server?.error_status === McpServerErrorStatusEnum.Enum.ERROR) {
-      // Don't allow connection if server is in error state
+      retryMutation.mutate({ uuid });
       return;
     }
     if (connection.connectionStatus === "connected") {
@@ -447,10 +476,15 @@ export default function McpServerDetailPage({
                   variant="outline"
                   size="sm"
                   onClick={handleConnectionToggle}
-                  disabled={connection.connectionStatus === "connecting"}
+                  disabled={
+                    connection.connectionStatus === "connecting" ||
+                    retryMutation.isPending
+                  }
                   className="whitespace-nowrap flex-shrink-0"
                 >
-                  {connection.connectionStatus === "connected"
+                  {server.error_status === McpServerErrorStatusEnum.Enum.ERROR
+                    ? t("mcp-servers:detail.retry")
+                    : connection.connectionStatus === "connected"
                     ? t("mcp-servers:detail.reconnect")
                     : t("mcp-servers:detail.connect")}
                 </Button>
@@ -707,6 +741,14 @@ export default function McpServerDetailPage({
                     <p className="mt-1 text-xs text-muted-foreground">
                       {t("mcp-servers:detail.fixServerErrorToManageTools")}
                     </p>
+                    <Button
+                      className="mt-4"
+                      variant="outline"
+                      onClick={() => retryMutation.mutate({ uuid })}
+                      disabled={retryMutation.isPending}
+                    >
+                      {t("mcp-servers:detail.retry")}
+                    </Button>
                   </div>
                 </div>
               </div>

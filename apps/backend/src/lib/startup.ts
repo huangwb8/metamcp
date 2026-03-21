@@ -3,7 +3,104 @@ import { ServerParameters } from "@repo/zod-types";
 import { mcpServersRepository, namespacesRepository } from "../db/repositories";
 import { initializeEnvironmentConfiguration } from "./bootstrap.service";
 import { metaMcpServerPool } from "./metamcp";
+import { mcpServerPool } from "./metamcp/mcp-server-pool";
 import { convertDbServerToParams } from "./metamcp/utils";
+
+const sleep = (time: number) =>
+  new Promise<void>((resolve) => setTimeout(resolve, time));
+
+const parsePositiveInt = (value: string | undefined, fallback: number) => {
+  if (!value) {
+    return fallback;
+  }
+
+  const parsed = Number.parseInt(value, 10);
+  if (Number.isNaN(parsed) || parsed <= 0) {
+    return fallback;
+  }
+
+  return parsed;
+};
+
+const getStartupPriority = (params: ServerParameters): number => {
+  switch (params.type) {
+    case "STREAMABLE_HTTP":
+    case "SSE":
+      return 0;
+    case "STDIO":
+    default:
+      return 1;
+  }
+};
+
+export async function waitForBackendReadiness(options?: {
+  port?: number;
+  attempts?: number;
+  intervalMs?: number;
+  path?: string;
+}): Promise<boolean> {
+  const port = options?.port ?? 12009;
+  const attempts = options?.attempts ?? 20;
+  const intervalMs = options?.intervalMs ?? 500;
+  const path = options?.path ?? "/health";
+  const url = `http://127.0.0.1:${port}${path}`;
+
+  for (let attempt = 1; attempt <= attempts; attempt++) {
+    try {
+      const response = await fetch(url);
+      if (response.ok) {
+        return true;
+      }
+    } catch {
+      // Keep polling until the backend starts answering.
+    }
+
+    if (attempt < attempts) {
+      await sleep(intervalMs);
+    }
+  }
+
+  return false;
+}
+
+async function warmServersForStartup(
+  allServerParams: Record<string, ServerParameters>,
+): Promise<void> {
+  const startupConcurrency = parsePositiveInt(
+    process.env.MCP_STARTUP_WARMUP_CONCURRENCY,
+    2,
+  );
+  const batchDelayMs = parsePositiveInt(
+    process.env.MCP_STARTUP_WARMUP_DELAY_MS,
+    750,
+  );
+
+  const orderedServers = Object.entries(allServerParams).sort(
+    ([leftUuid, leftParams], [rightUuid, rightParams]) => {
+      const priorityDifference =
+        getStartupPriority(leftParams) - getStartupPriority(rightParams);
+      if (priorityDifference !== 0) {
+        return priorityDifference;
+      }
+
+      return leftUuid.localeCompare(rightUuid);
+    },
+  );
+
+  for (let index = 0; index < orderedServers.length; index += startupConcurrency) {
+    const batch = orderedServers.slice(index, index + startupConcurrency);
+
+    await Promise.allSettled(
+      batch.map(([uuid, params]) =>
+        mcpServerPool.ensureIdleSessionForNewServer(uuid, params),
+      ),
+    );
+
+    if (index + startupConcurrency < orderedServers.length) {
+      await sleep(batchDelayMs);
+    }
+  }
+}
 
 /**
  * Startup initialization that must happen before the HTTP server begins listening.
@@ -78,10 +175,10 @@ export async function initializeIdleServers() {
       `Successfully converted ${Object.keys(allServerParams).length} MCP servers to ServerParameters format`,
     );
 
-    // Initialize idle sessions for the underlying MCP server pool with ALL servers
+    // Initialize idle sessions for the underlying MCP server pool with ALL servers,
+    // but do it in small batches to avoid stampeding many cold STDIO servers at once.
     if (Object.keys(allServerParams).length > 0) {
-      const { mcpServerPool } = await import("./metamcp");
-      await mcpServerPool.ensureIdleSessions(allServerParams);
+      await warmServersForStartup(allServerParams);
       console.log(
         "✅ Successfully initialized idle MCP server pool sessions for ALL servers",
       );

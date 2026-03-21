@@ -166,12 +166,18 @@
     "showValue": "显示值",
     "mcpConnection": "MCP 连接",
     "connectionError": "连接错误",
+    "serverError": "服务器错误",
     "connecting": "连接中...",
     "reconnect": "重新连接",
     "connect": "连接",
+    "retryServerSuccess": "已开始重试服务器",
+    "retryServerError": "重试服务器失败",
     "connectToManageTools": "连接到 MCP 服务器以管理工具",
     "connectingToServer": "正在连接到 MCP 服务器...",
-    "toolsManagement": "工具管理"
+    "toolsManagement": "工具管理",
+    "serverErrorTitle": "服务器错误",
+    "serverErrorDescription": "该 MCP 服务器当前处于错误状态，暂时无法连接。",
+    "fixServerErrorToManageTools": "请先恢复服务器错误状态，再管理工具"
   },
   "tools": {
     "overview": "工具概览",

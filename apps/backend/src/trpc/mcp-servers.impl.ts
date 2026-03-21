@@ -7,6 +7,8 @@ import {
   GetMcpServerResponseSchema,
   ListMcpServersResponseSchema,
   McpServerTypeEnum,
+  RetryMcpServerRequestSchema,
+  RetryMcpServerResponseSchema,
   UpdateMcpServerRequestSchema,
   UpdateMcpServerResponseSchema,
 } from "@repo/zod-types";
@@ -234,6 +236,71 @@ export const mcpServersImplementations = {
       return {
         success: false as const,
         message: "Failed to fetch MCP server",
+      };
+    }
+  },
+
+  retry: async (
+    input: z.infer<typeof RetryMcpServerRequestSchema>,
+    userId: string,
+  ): Promise<z.infer<typeof RetryMcpServerResponseSchema>> => {
+    try {
+      const server = await mcpServersRepository.findByUuid(input.uuid);
+
+      if (!server) {
+        return {
+          success: false as const,
+          message: "MCP server not found",
+        };
+      }
+
+      if (server.user_id && server.user_id !== userId) {
+        return {
+          success: false as const,
+          message: "Access denied: You can only retry servers you own",
+        };
+      }
+
+      await serverErrorTracker.resetServerErrorState(server.uuid);
+
+      const serverParams = await convertDbServerToParams(server);
+      if (serverParams) {
+        await mcpServerPool.invalidateIdleSession(server.uuid, serverParams);
+      } else {
+        await mcpServerPool.cleanupIdleSession(server.uuid);
+      }
+
+      const affectedNamespaceUuids =
+        await namespaceMappingsRepository.findNamespacesByServerUuid(
+          server.uuid,
+        );
+
+      if (affectedNamespaceUuids.length > 0) {
+        await Promise.allSettled([
+          metaMcpServerPool.invalidateIdleServers(affectedNamespaceUuids),
+          metaMcpServerPool.invalidateOpenApiSessions(affectedNamespaceUuids),
+        ]);
+
+        affectedNamespaceUuids.forEach((namespaceUuid) => {
+          clearOverrideCache(namespaceUuid);
+        });
+      }
+
+      const refreshedServer = await mcpServersRepository.findByUuid(server.uuid);
+
+      return {
+        success: true as const,
+        data: refreshedServer
+          ? McpServersSerializer.serializeMcpServer(refreshedServer)
+          : undefined,
+        message: "MCP server retry triggered successfully",
+      };
+    } catch (error) {
+      logger.error("Error retrying MCP server:", error);
+      return {
+        success: false as const,
+        message:
+          error instanceof Error ? error.message : "Internal server error",
       };
     }
   },

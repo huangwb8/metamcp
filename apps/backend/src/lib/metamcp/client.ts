@@ -15,6 +15,17 @@ import { resolveEnvVariables } from "./utils";
 const sleep = (time: number) =>
   new Promise<void>((resolve) => setTimeout(() => resolve(), time));
 
+const baseRetryDelayMs = 2_000;
+const maxRetryDelayMs = 15_000;
+
+export const getConnectionRetryDelayMs = (attempt: number): number => {
+  const normalizedAttempt = Math.max(1, attempt);
+  return Math.min(
+    baseRetryDelayMs * 2 ** (normalizedAttempt - 1),
+    maxRetryDelayMs,
+  );
+};
+
 export interface ConnectedClient {
   client: Client;
   cleanup: () => Promise<void>;
@@ -163,8 +174,6 @@ export const connectMetaMcpClient = async (
   serverParams: ServerParameters,
   onProcessCrash?: (exitCode: number | null, signal: string | null) => void,
 ): Promise<ConnectedClient | undefined> => {
-  const waitFor = 5000;
-
   // Get max attempts from server error tracker instead of hardcoding
   const maxAttempts = await serverErrorTracker.getServerMaxAttempts(
     serverParams.uuid,
@@ -226,6 +235,7 @@ export const connectMetaMcpClient = async (
       }
 
       await client.connect(transport);
+      await serverErrorTracker.recordSuccessfulConnection(serverParams.uuid);
 
       return {
         client,
@@ -278,7 +288,7 @@ export const connectMetaMcpClient = async (
       count++;
       retry = count < maxAttempts;
       if (retry) {
-        await sleep(waitFor);
+        await sleep(getConnectionRetryDelayMs(count));
       }
     }
   }

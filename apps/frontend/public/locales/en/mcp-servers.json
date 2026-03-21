@@ -168,6 +168,8 @@
     "connecting": "Connecting...",
     "reconnect": "Reconnect",
     "connect": "Connect",
+    "retryServerSuccess": "Retry started",
+    "retryServerError": "Failed to retry server",
     "connectToManageTools": "Connect to MCP server to manage tools",
     "connectingToServer": "Connecting to MCP server...",
     "toolsManagement": "Tools Management",
