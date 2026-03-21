@@ -1,6 +1,7 @@
 import {
   BulkImportMcpServerSchema,
   createServerFormSchema,
+  MetaMcpLogEntrySchema,
   RefreshNamespaceToolsRequestSchema,
   UpdateNamespaceToolStatusRequestSchema,
 } from "../../packages/zod-types/src";
@@ -91,5 +92,32 @@ describe("shared MetaMCP schema contract", () => {
         expect.objectContaining({ path: ["serverUuid"] }),
       ]),
     );
+  });
+
+  it("accepts structured live log entries for MCP activity events", () => {
+    const parsed = MetaMcpLogEntrySchema.parse({
+      id: "log-1",
+      timestamp: new Date("2026-03-21T10:00:00.000Z"),
+      serverName: "GitHub",
+      level: "info",
+      message: 'Tool "search_repositories" completed',
+      category: "tool",
+      event: "tool_call",
+      status: "success",
+      namespaceUuid: "7ca07488-e4dc-4031-b823-1041e369fdc5",
+      sessionId: "session-123",
+      serverUuid: "server-123",
+      toolName: "search_repositories",
+      durationMs: 128,
+      details: {
+        argumentCount: 1,
+        argumentKeys: ["query"],
+        argumentPreview: '{"query":"metamcp"}',
+      },
+    });
+
+    expect(parsed.category).toBe("tool");
+    expect(parsed.durationMs).toBe(128);
+    expect(parsed.details?.argumentKeys).toEqual(["query"]);
   });
 });

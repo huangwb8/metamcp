@@ -14,22 +14,28 @@
 - 新增首批仓库级契约测试，覆盖 MetaMCP 工具命名规则、函数式中间件组合、共享 Zod 协议、前端校验翻译与共享 config router 的鉴权/输入边界
 - 新增 Docker Hub 发布工作流 `.github/workflows/publish-release-images.yml`：以 GitHub Release 为发布源，支持即时触发、12 小时补偿检查、缺失标签探测和多架构镜像推送
 - 新增中英文版本/镜像发布说明文档，记录 Docker Hub 变量、Secrets、标签策略与本地切换方式
+- 新增操作手册 `docs/自动推送到docker-hub.md`，提供 Docker Hub token、GitHub Secrets / Variables、Release 触发与本地切换镜像的逐步配置教程
+- 新增 MetaMCP 结构化活动日志字段与契约测试，可在共享日志模型中承载 `namespace/session/server/tool/duration/details` 等调用观测信息
 
 ### Changed（变更）
 
+- 增强 MetaMCP Live Logs 可观测性：后端统一记录 MCP `tools/list` / `tools/call` 的开始、成功、失败、耗时与参数/结果摘要，前端实时日志页面同步展示级别、事件、状态、工具名、耗时和详情，便于直接判断具体哪些 MCP 被实际激活并执行了什么
 - 将 MCP 服务默认最大重试次数从 1 次提升到 3 次，并在连接层引入指数退避，降低冷启动时 `npx`/STDIO 服务被一次失败直接判死的概率
 - 调整后端启动预热流程：等待本地健康检查通过后再预热服务池，并以分批节流方式初始化 MCP servers，减少自引用 HTTP 服务和多 STDIO 并发拉起时的竞争
 - 更新 `AGENTS.md` 与 `CLAUDE.md` 协作约定，要求优先基于 `./tests` 验证改动，并将测试中间文件统一写入 `./tmp`
 - 更新 `docker-compose.yml` 与 `example.env`：为应用镜像新增 `METAMCP_IMAGE` 覆盖入口，在保留 GHCR 默认值的前提下支持无侵入切换到 Docker Hub release 镜像
 - 更新 `README.md`、`README_cn.md` 与 quickstart 文档：补充 Docker Hub 自动发布工作流、仓库配置要求和 compose 使用方式
+- 更新 `live-logs` 页面展示逻辑：除原始消息外，现可直接查看 MCP 激活、工具调用状态、工具名、耗时、会话/命名空间以及结构化 details
 
 ### Fixed（修复）
 
+- 修复 OpenAPI MCP 执行链路中的日志缺口与变量引用问题；之前部分工具执行和 OpenAPI 会话激活只写入文件日志或存在未定义 `serverUuid`，导致 Live Logs 看不到完整执行过程
 - 修复 MCP server `ERROR` 状态会被数据库残留值永久锁死的问题；现在重启后允许自动再次尝试，成功连接会自动清除错误状态
 - 修复 MCP server 错误状态恢复链路不完整的问题；新增服务级手动重试接口和前端入口，无需再手动改数据库才能触发恢复
 - 修复 backend `vitest` 未解析 `@/` 路径别名导致测试无法运行的问题
 - 修复 `@repo/trpc` 在生成声明文件时无法解析 workspace `@repo/zod-types` 类型的问题，恢复共享路由包的稳定构建
 - 修复 Docker 镜像 OCI 元数据仍硬编码指向上游仓库的问题，改为支持按当前 fork 注入正确的 source/vendor 信息
+- 修复 MetaMCP `live-logs` 无法判断 MCP 是否实际被调用的问题；现在会为连接、session 激活、`tools/list`、`tools/call`、成功/失败和错误产出可追踪日志
 
 ## [1.0.0] - 2026-03-21
 

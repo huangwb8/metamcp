@@ -1,6 +1,6 @@
 {
   "title": "Live Logs",
-  "subtitle": "MetaMCP server logs and error messages",
+  "subtitle": "MetaMCP server logs, MCP activation activity, and tool execution events",
   "lastUpdated": "Last updated: {{timestamp}}",
   "totalLogs": "{{count}} total logs",
   "autoRefresh": "Auto-refresh",
@@ -56,5 +56,15 @@
   "connecting": "Connecting...",
   "reconnecting": "Reconnecting...",
   "logsCount": "{{count}} logs",
-  "filteredLogsCount": "{{count}} of {{total}} logs shown"
+  "filteredLogsCount": "{{count}} of {{total}} logs shown",
+  "categoryLabel": "Category",
+  "eventLabel": "Event",
+  "statusLabel": "Status",
+  "toolLabel": "Tool",
+  "durationLabel": "Duration",
+  "sessionLabel": "Session",
+  "namespaceLabel": "Namespace",
+  "serverUuidLabel": "Server UUID",
+  "detailsLabel": "Details",
+  "errorLabel": "Error"
 }

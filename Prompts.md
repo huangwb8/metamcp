@@ -1,10 +1,22 @@
 # 基本
 
-- 使用 [$awesome-code](/Users/bensz/.codex/skills/awesome-code/SKILL.md) 辅助规划、优化。所有问题都要解决。 如果工作时有疑问，或者有更好的方案，自己选个最优方案优化，不要问我。不要破坏其它功能。要保证最终成品能正常、稳定、高效地工作。 
+- 更新版本
 
-  根据 docs/plans/SDK-沙箱机制-v202602231445.md， 使用 [$awesome-code](/Users/bensz/.codex/skills/awesome-code/SKILL.md) 优化代码，所有问题都要解决，所有意见都要落实。 如果工作时有疑问，或者有更好的方案，自己选个最优方案优化，不要问我。 不要破坏其它功能。 要保证最终成品能正常、稳定、高效地工作。 
+```
+version=1.0.1
+创建tag v{version}； 使用 git-commit skill 生成中文commit信息； 使用 git-publish-release skill 发布新版本，release note用中文。
+```
+
+- 使用 [$awesome-code](/Users/bensz/.codex/skills/awesome-code/SKILL.md) 辅助规划、优化。所有问题都要解决。 如果工作时有疑问，或者有更好的方案，自己选个最优方案优化，不要问我。不要破坏其它功能。要保证最终成品能正常、稳定、高效地工作。 
+- 根据 docs/plans/SDK-沙箱机制-v202602231445.md， 使用 [$awesome-code](/Users/bensz/.codex/skills/awesome-code/SKILL.md) 优化代码，所有问题都要解决，所有意见都要落实。 如果工作时有疑问，或者有更好的方案，自己选个最优方案优化，不要问我。 不要破坏其它功能。 要保证最终成品能正常、稳定、高效地工作。 
 
 # 日常
+
+---
+
+目前，metamcp的日志里，看不到mcp工作的具体过程（比如什么时候哪些mcp被激活了，这些mcp干了啥之类的）。我希望能看到，这样我就可以判断mcp是否真的被实际地调用了。  使用 [$awesome-code](/Users/bensz/.codex/skills/awesome-code/SKILL.md) 辅助规划、优化。所有问题都要解决。 如果工作时有疑问，或者有更好的方案，自己选个最优方案优化，不要问我。不要破坏其它功能。要保证最终成品能正常、稳定、高效地工作。 
+
+---
 
 请模仿 /Volumes/2T01/winE/Starup/bensz-channel , 搞个自动化生成 docker image并推到 docker hub 官方的流程。  使用 [$awesome-code](/Users/bensz/.codex/skills/awesome-code/SKILL.md) 辅助规划、优化。所有问题都要解决。 如果工作时有疑问，或者有更好的方案，自己选个最优方案优化，不要问我。不要破坏其它功能。要保证最终成品能正常、稳定、高效地工作。 
 

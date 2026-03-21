@@ -1,13 +1,8 @@
+import type { MetaMcpLogContext, MetaMcpLogEntry } from "@repo/zod-types";
+
 import logger from "@/utils/logger";
 
-export interface MetaMcpLogEntry {
-  id: string;
-  timestamp: Date;
-  serverName: string;
-  level: "error" | "info" | "warn";
-  message: string;
-  error?: string;
-}
+type MetaMcpLogEventInput = Omit<MetaMcpLogEntry, "id" | "timestamp">;
 
 class MetaMcpLogStore {
   private logs: MetaMcpLogEntry[] = [];
@@ -19,10 +14,9 @@ class MetaMcpLogStore {
     level: MetaMcpLogEntry["level"],
     message: string,
     error?: unknown,
+    context: MetaMcpLogContext = {},
   ) {
-    const logEntry: MetaMcpLogEntry = {
-      id: crypto.randomUUID(),
-      timestamp: new Date(),
+    this.addEvent({
       serverName,
       level,
       message,
@@ -31,6 +25,15 @@ class MetaMcpLogStore {
           ? error.message
           : String(error)
         : undefined,
+      ...context,
+    });
+  }
+
+  addEvent(event: MetaMcpLogEventInput) {
+    const logEntry: MetaMcpLogEntry = {
+      id: crypto.randomUUID(),
+      timestamp: new Date(),
+      ...event,
     };
 
     // Add to logs array
@@ -42,16 +45,23 @@ class MetaMcpLogStore {
     }
 
     // Also log to console for debugging
-    const fullMessage = `[MetaMCP][${serverName}] ${message}`;
-    switch (level) {
+    const detailsSuffix = logEntry.details
+      ? ` ${JSON.stringify(logEntry.details)}`
+      : "";
+    const durationSuffix =
+      typeof logEntry.durationMs === "number"
+        ? ` (${logEntry.durationMs}ms)`
+        : "";
+    const fullMessage = `[MetaMCP][${logEntry.serverName}] ${logEntry.message}${durationSuffix}${detailsSuffix}`;
+    switch (logEntry.level) {
       case "error":
-        logger.error(fullMessage, error || "");
+        logger.error(fullMessage, logEntry.error || "");
         break;
       case "warn":
-        logger.warn(fullMessage, error || "");
+        logger.warn(fullMessage, logEntry.error || "");
         break;
       case "info":
-        logger.info(fullMessage, error || "");
+        logger.info(fullMessage, logEntry.error || "");
         break;
     }
 

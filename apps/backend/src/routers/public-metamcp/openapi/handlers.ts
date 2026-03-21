@@ -26,6 +26,16 @@ import {
   createToolOverridesCallToolMiddleware,
   createToolOverridesListToolsMiddleware,
 } from "../../../lib/metamcp/metamcp-middleware/tool-overrides.functional";
+import {
+  logToolCallCompleted,
+  logToolCallFailed,
+  logToolCallStarted,
+  logToolsListCompleted,
+  logToolsListFailed,
+  logToolsListStarted,
+  logUnknownToolCall,
+} from "../../../lib/metamcp/tool-execution-logging";
+import { parseToolName } from "../../../lib/metamcp/tool-name-parser";
 import { sanitizeName } from "../../../lib/metamcp/utils";
 
 // Original List Tools Handler (adapted from metamcp-proxy.ts)
@@ -55,7 +65,15 @@ export const createOriginalListToolsHandler = (
         // Use name assigned by user, fallback to name from server
         const serverName =
           params.name || session.client.getServerVersion()?.name || "";
+        const listStart = performance.now();
         try {
+          logToolsListStarted({
+            context,
+            requestSource: "openapi",
+            serverName,
+            serverUuid: mcpServerUuid,
+          });
+
           // Get configurable timeout values to bypass MCP SDK default enforcement
           const resetTimeoutOnProgress =
             await configService.getMcpResetTimeoutOnProgress();
@@ -88,7 +106,27 @@ export const createOriginalListToolsHandler = (
             }) || [];
 
           allTools.push(...toolsWithSource);
+          logToolsListCompleted(
+            {
+              context,
+              requestSource: "openapi",
+              serverName,
+              serverUuid: mcpServerUuid,
+            },
+            toolsWithSource.length,
+            listStart,
+          );
         } catch (error) {
+          logToolsListFailed(
+            {
+              context,
+              requestSource: "openapi",
+              serverName,
+              serverUuid: mcpServerUuid,
+            },
+            listStart,
+            error,
+          );
           logger.error(`Error fetching tools from: ${serverName}`, error);
         }
       }),
@@ -102,52 +140,96 @@ export const createOriginalListToolsHandler = (
 export const createOriginalCallToolHandler = (): CallToolHandler => {
   const toolToClient: Record<string, ConnectedClient> = {};
   const toolToServerUuid: Record<string, string> = {};
+  const toolToServerName: Record<string, string> = {};
 
   return async (request, context) => {
     const { name, arguments: args } = request.params;
 
-    // Extract the original tool name by removing the server prefix
-    const firstDoubleUnderscoreIndex = name.indexOf("__");
-    if (firstDoubleUnderscoreIndex === -1) {
+    const parsed = parseToolName(name);
+    if (!parsed) {
       throw new Error(`Invalid tool name format: ${name}`);
     }
 
-    const serverPrefix = name.substring(0, firstDoubleUnderscoreIndex);
-    const originalToolName = name.substring(firstDoubleUnderscoreIndex + 2);
+    const { serverName: serverPrefix, originalToolName } = parsed;
 
     // Get server parameters and find the right session for this tool
     const serverParams = await getMcpServers(context.namespaceUuid);
-    let targetSession = null;
+    let targetSession: ConnectedClient | null = toolToClient[name] || null;
+    let serverUuid = toolToServerUuid[name];
+    let targetServerName = toolToServerName[name];
 
-    for (const [mcpServerUuid, params] of Object.entries(serverParams)) {
-      const session = await mcpServerPool.getSession(
-        context.sessionId,
-        mcpServerUuid,
-        params,
-        context.namespaceUuid,
-      );
-      if (!session) continue;
+    if (!targetSession || !serverUuid) {
+      for (const [mcpServerUuid, params] of Object.entries(serverParams)) {
+        const session = await mcpServerPool.getSession(
+          context.sessionId,
+          mcpServerUuid,
+          params,
+          context.namespaceUuid,
+        );
+        if (!session) continue;
 
-      const capabilities = session.client.getServerCapabilities();
-      if (!capabilities?.tools) continue;
+        const capabilities = session.client.getServerCapabilities();
+        if (!capabilities?.tools) continue;
 
-      // Use name assigned by user, fallback to name from server
-      const serverName =
-        params.name || session.client.getServerVersion()?.name || "";
+        // Use name assigned by user, fallback to name from server
+        const serverName =
+          params.name || session.client.getServerVersion()?.name || "";
 
-      if (sanitizeName(serverName) === serverPrefix) {
-        targetSession = session;
-        toolToClient[name] = session;
-        toolToServerUuid[name] = mcpServerUuid;
-        break;
+        if (sanitizeName(serverName) === serverPrefix) {
+          targetSession = session;
+          serverUuid = mcpServerUuid;
+          targetServerName = serverName;
+          toolToClient[name] = session;
+          toolToServerUuid[name] = mcpServerUuid;
+          toolToServerName[name] = serverName;
+          break;
+        }
       }
     }
 
     if (!targetSession) {
+      logUnknownToolCall(
+        {
+          context,
+          requestSource: "openapi",
+          serverName: targetServerName || serverPrefix,
+          toolName: originalToolName,
+        },
+        args || {},
+      );
       throw new Error(`Unknown tool: ${name}`);
     }
 
+    if (!serverUuid) {
+      logUnknownToolCall(
+        {
+          context,
+          requestSource: "openapi",
+          serverName: targetServerName || serverPrefix,
+          toolName: originalToolName,
+        },
+        args || {},
+      );
+      throw new Error(`Server UUID not found for tool: ${name}`);
+    }
+
+    const callStart = performance.now();
     try {
+      const resolvedServerName =
+        targetServerName ||
+        targetSession.client.getServerVersion()?.name ||
+        serverPrefix;
+      logToolCallStarted(
+        {
+          context,
+          requestSource: "openapi",
+          serverName: resolvedServerName,
+          serverUuid,
+          toolName: originalToolName,
+        },
+        args || {},
+      );
+
       // Get configurable timeout values to bypass MCP SDK default enforcement
       const resetTimeoutOnProgress =
         await configService.getMcpResetTimeoutOnProgress();
@@ -177,8 +259,36 @@ export const createOriginalCallToolHandler = (): CallToolHandler => {
       );
 
       // Cast the result to CallToolResult type
-      return result as CallToolResult;
+      const callResult = result as CallToolResult;
+      logToolCallCompleted(
+        {
+          context,
+          requestSource: "openapi",
+          serverName: resolvedServerName,
+          serverUuid,
+          toolName: originalToolName,
+        },
+        args || {},
+        callResult,
+        callStart,
+      );
+
+      return callResult;
     } catch (error) {
+      logToolCallFailed(
+        {
+          context,
+          requestSource: "openapi",
+          serverName:
+            targetServerName ||
+            targetSession.client.getServerVersion()?.name ||
+            serverPrefix,
+          serverUuid,
+          toolName: originalToolName,
+        },
+        callStart,
+        error,
+      );
       logger.error(
         `Error calling tool "${name}" through ${
           targetSession.client.getServerVersion()?.name || "unknown"

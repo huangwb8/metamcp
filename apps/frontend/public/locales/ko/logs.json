@@ -1,6 +1,6 @@
 {
   "title": "실시간 로그",
-  "subtitle": "MetaMCP Server 로그 및 오류 메시지",
+  "subtitle": "MetaMCP Server 로그, MCP 활성화 흐름 및 도구 실행 이벤트",
   "lastUpdated": "마지막 업데이트: {{timestamp}}",
   "totalLogs": "총 {{count}}개 로그",
   "autoRefresh": "자동 새로고침",

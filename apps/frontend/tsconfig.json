@@ -8,7 +8,8 @@
     ],
     "baseUrl": ".",
     "paths": {
-      "@/*": ["./*"]
+      "@/*": ["./*"],
+      "@repo/zod-types": ["../../packages/zod-types/src/index.ts"]
     }
   },
   "include": [

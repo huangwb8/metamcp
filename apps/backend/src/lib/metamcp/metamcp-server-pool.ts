@@ -3,6 +3,7 @@ import { Server } from "@modelcontextprotocol/sdk/server/index.js";
 import logger from "@/utils/logger";
 
 import { configService } from "../config.service";
+import { metamcpLogStore } from "./log-store";
 import { mcpServerPool } from "./mcp-server-pool";
 import { createServer } from "./metamcp-proxy";
 
@@ -68,6 +69,19 @@ export class MetaMcpServerPool {
   ): Promise<MetaMcpServerInstance | undefined> {
     // Check if we already have an active server for this sessionId
     if (this.activeServers[sessionId]) {
+      metamcpLogStore.addLog(
+        "MetaMCP",
+        "info",
+        "Reusing active MetaMCP namespace session",
+        undefined,
+        {
+          category: "session",
+          event: "metamcp_session_reused",
+          status: "success",
+          namespaceUuid,
+          sessionId,
+        },
+      );
       return this.activeServers[sessionId];
     }
 
@@ -82,6 +96,19 @@ export class MetaMcpServerPool {
 
       logger.info(
         `Converted idle MetaMCP server to active for namespace ${namespaceUuid}, session ${sessionId}`,
+      );
+      metamcpLogStore.addLog(
+        "MetaMCP",
+        "info",
+        "Activated MetaMCP namespace session from warm pool",
+        undefined,
+        {
+          category: "session",
+          event: "metamcp_session_activated",
+          status: "success",
+          namespaceUuid,
+          sessionId,
+        },
       );
 
       // Create a new idle server to replace the one we just used (ASYNC - NON-BLOCKING)
@@ -106,6 +133,19 @@ export class MetaMcpServerPool {
 
     logger.info(
       `Created new active MetaMCP server for namespace ${namespaceUuid}, session ${sessionId}`,
+    );
+    metamcpLogStore.addLog(
+      "MetaMCP",
+      "info",
+      "Created new MetaMCP namespace session",
+      undefined,
+      {
+        category: "session",
+        event: "metamcp_session_created",
+        status: "success",
+        namespaceUuid,
+        sessionId,
+      },
     );
 
     // Also create an idle server for future use (ASYNC - NON-BLOCKING)
@@ -272,6 +312,19 @@ export class MetaMcpServerPool {
     }
 
     logger.info(`Cleaned up MetaMCP server pool session ${sessionId}`);
+    metamcpLogStore.addLog(
+      "MetaMCP",
+      "info",
+      "Cleaned up MetaMCP namespace session",
+      undefined,
+      {
+        category: "session",
+        event: "metamcp_session_cleanup",
+        status: "success",
+        namespaceUuid,
+        sessionId,
+      },
+    );
   }
 
   /**
@@ -454,6 +507,22 @@ export class MetaMcpServerPool {
 
     // Check if we already have an active server for this OpenAPI session
     if (this.activeServers[sessionId]) {
+      metamcpLogStore.addLog(
+        "MetaMCP",
+        "info",
+        "Reusing OpenAPI MetaMCP namespace session",
+        undefined,
+        {
+          category: "session",
+          event: "metamcp_session_reused",
+          status: "success",
+          namespaceUuid,
+          sessionId,
+          details: {
+            requestSource: "openapi",
+          },
+        },
+      );
       return this.activeServers[sessionId];
     }
 
@@ -468,6 +537,22 @@ export class MetaMcpServerPool {
 
       logger.info(
         `Converted idle MetaMCP server to OpenAPI server for namespace ${namespaceUuid}, session ${sessionId}`,
+      );
+      metamcpLogStore.addLog(
+        "MetaMCP",
+        "info",
+        "Activated OpenAPI MetaMCP namespace session from warm pool",
+        undefined,
+        {
+          category: "session",
+          event: "metamcp_session_activated",
+          status: "success",
+          namespaceUuid,
+          sessionId,
+          details: {
+            requestSource: "openapi",
+          },
+        },
       );
 
       // Create a new idle server to replace the one we just used (SYNC - BLOCKING)
@@ -492,6 +577,22 @@ export class MetaMcpServerPool {
 
     logger.info(
       `Created new OpenAPI MetaMCP server for namespace ${namespaceUuid}, session ${sessionId}`,
+    );
+    metamcpLogStore.addLog(
+      "MetaMCP",
+      "info",
+      "Created new OpenAPI MetaMCP namespace session",
+      undefined,
+      {
+        category: "session",
+        event: "metamcp_session_created",
+        status: "success",
+        namespaceUuid,
+        sessionId,
+        details: {
+          requestSource: "openapi",
+        },
+      },
     );
 
     // Also create an idle server for future use (SYNC - BLOCKING)

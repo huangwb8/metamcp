@@ -4,6 +4,7 @@ import logger from "@/utils/logger";
 
 import { configService } from "../config.service";
 import { ConnectedClient, connectMetaMcpClient } from "./client";
+import { metamcpLogStore } from "./log-store";
 import { serverErrorTracker } from "./server-error-tracker";
 
 export interface McpServerPoolStatus {
@@ -80,6 +81,20 @@ export class McpServerPool {
 
     // Check if we already have an active session for this sessionId and server
     if (this.activeSessions[sessionId]?.[serverUuid]) {
+      metamcpLogStore.addLog(
+        params.name,
+        "info",
+        "Reusing active MCP server session",
+        undefined,
+        {
+          category: "session",
+          event: "session_reused",
+          status: "success",
+          namespaceUuid,
+          sessionId,
+          serverUuid,
+        },
+      );
       return this.activeSessions[sessionId][serverUuid];
     }
 
@@ -101,6 +116,20 @@ export class McpServerPool {
       logger.info(
         `Converted idle session to active for server ${serverUuid}, session ${sessionId}`,
       );
+      metamcpLogStore.addLog(
+        params.name,
+        "info",
+        "Activated MCP server from warm pool",
+        undefined,
+        {
+          category: "session",
+          event: "session_activated",
+          status: "success",
+          namespaceUuid,
+          sessionId,
+          serverUuid,
+        },
+      );
 
       // Create a new idle session to replace the one we just used (ASYNC - NON-BLOCKING)
       this.createIdleSessionAsync(serverUuid, params, namespaceUuid);
@@ -119,6 +148,20 @@ export class McpServerPool {
 
     logger.info(
       `Created new active session for server ${serverUuid}, session ${sessionId}`,
+    );
+    metamcpLogStore.addLog(
+      params.name,
+      "info",
+      "Created new MCP server session",
+      undefined,
+      {
+        category: "session",
+        event: "session_created",
+        status: "success",
+        namespaceUuid,
+        sessionId,
+        serverUuid,
+      },
     );
 
     // Also create an idle session for future use (ASYNC - NON-BLOCKING)
@@ -321,6 +364,21 @@ export class McpServerPool {
     }
 
     logger.info(`Cleaned up MCP server pool session ${sessionId}`);
+    metamcpLogStore.addLog(
+      "MetaMCP",
+      "info",
+      "Cleaned up MCP server session",
+      undefined,
+      {
+        category: "session",
+        event: "session_cleanup",
+        status: "success",
+        sessionId,
+        details: {
+          cleanedServers: Object.keys(activeSession).length,
+        },
+      },
+    );
   }
 
   /**

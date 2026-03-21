@@ -9,6 +9,7 @@ import logger from "@/utils/logger";
 
 import { ProcessManagedStdioTransport } from "../stdio-transport/process-managed-transport";
 import { metamcpLogStore } from "./log-store";
+import { getElapsedDurationMs } from "./observability";
 import { serverErrorTracker } from "./server-error-tracker";
 import { resolveEnvVariables } from "./utils";
 
@@ -76,6 +77,13 @@ export const createMetaMcpClient = (
           serverParams.name,
           "error",
           chunk.toString().trim(),
+          undefined,
+          {
+            category: "server",
+            event: "stderr",
+            status: "error",
+            serverUuid: serverParams.uuid,
+          },
         );
       });
 
@@ -85,6 +93,12 @@ export const createMetaMcpClient = (
           "error",
           "stderr error",
           error,
+          {
+            category: "server",
+            event: "stderr",
+            status: "error",
+            serverUuid: serverParams.uuid,
+          },
         );
       });
     }
@@ -150,6 +164,16 @@ export const createMetaMcpClient = (
       serverParams.name,
       "error",
       `Unsupported server type: ${serverParams.type}`,
+      undefined,
+      {
+        category: "server",
+        event: "connect",
+        status: "error",
+        serverUuid: serverParams.uuid,
+        details: {
+          transportType: serverParams.type || "unknown",
+        },
+      },
     );
     return { client: undefined, transport: undefined };
   }
@@ -188,8 +212,28 @@ export const connectMetaMcpClient = async (
   while (retry) {
     let transport: Transport | undefined;
     let client: Client | undefined;
+    const attemptNumber = count + 1;
+    const connectionStart = performance.now();
 
     try {
+      metamcpLogStore.addLog(
+        serverParams.name,
+        "info",
+        `Connecting to MCP server (attempt ${attemptNumber}/${maxAttempts})`,
+        undefined,
+        {
+          category: "server",
+          event: "connect",
+          status: "started",
+          serverUuid: serverParams.uuid,
+          details: {
+            attempt: attemptNumber,
+            maxAttempts,
+            transportType: serverParams.type || "STDIO",
+          },
+        },
+      );
+
       // Check if server is already in error state before attempting connection
       const isInErrorState = await serverErrorTracker.isServerInErrorState(
         serverParams.uuid,
@@ -236,6 +280,26 @@ export const connectMetaMcpClient = async (
 
       await client.connect(transport);
       await serverErrorTracker.recordSuccessfulConnection(serverParams.uuid);
+      const durationMs = getElapsedDurationMs(connectionStart);
+
+      metamcpLogStore.addLog(
+        serverParams.name,
+        "info",
+        "Connected to MCP server",
+        undefined,
+        {
+          category: "server",
+          event: "connect",
+          status: "success",
+          serverUuid: serverParams.uuid,
+          durationMs,
+          details: {
+            attempt: attemptNumber,
+            maxAttempts,
+            transportType: serverParams.type || "STDIO",
+          },
+        },
+      );
 
       return {
         client,
@@ -256,10 +320,22 @@ export const connectMetaMcpClient = async (
       };
     } catch (error) {
       metamcpLogStore.addLog(
-        "client",
+        serverParams.name,
         "error",
-        `Error connecting to MetaMCP client (attempt ${count + 1}/${maxAttempts})`,
+        `Error connecting to MCP server (attempt ${attemptNumber}/${maxAttempts})`,
         error,
+        {
+          category: "server",
+          event: "connect",
+          status: "error",
+          serverUuid: serverParams.uuid,
+          durationMs: getElapsedDurationMs(connectionStart),
+          details: {
+            attempt: attemptNumber,
+            maxAttempts,
+            transportType: serverParams.type || "STDIO",
+          },
+        },
       );
 
       // CRITICAL FIX: Clean up transport/process on connection failure

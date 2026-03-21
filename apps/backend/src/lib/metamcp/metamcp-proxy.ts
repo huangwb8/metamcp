@@ -43,6 +43,15 @@ import {
   createToolOverridesListToolsMiddleware,
   mapOverrideNameToOriginal,
 } from "./metamcp-middleware/tool-overrides.functional";
+import {
+  logToolCallCompleted,
+  logToolCallFailed,
+  logToolCallStarted,
+  logToolsListCompleted,
+  logToolsListFailed,
+  logToolsListStarted,
+  logUnknownToolCall,
+} from "./tool-execution-logging";
 import { parseToolName } from "./tool-name-parser";
 import { toolsSyncCache } from "./tools-sync-cache";
 import { sanitizeName } from "./utils";
@@ -104,6 +113,7 @@ export const createServer = async (
 ) => {
   const toolToClient: Record<string, ConnectedClient> = {};
   const toolToServerUuid: Record<string, string> = {};
+  const toolToServerName: Record<string, string> = {};
   const promptToClient: Record<string, ConnectedClient> = {};
   const resourceToClient: Record<string, ConnectedClient> = {};
 
@@ -146,11 +156,6 @@ export const createServer = async (
     request,
     context,
   ) => {
-    console.log(
-      "[DEBUG-TOOLS] 🔍 tools/list called for namespace:",
-      namespaceUuid,
-    );
-    const startTime = performance.now();
     const serverParams = await getMcpServers(
       context.namespaceUuid,
       includeInactiveServers,
@@ -163,19 +168,10 @@ export const createServer = async (
     // We'll filter servers during processing after getting sessions to check actual MCP server names
     const allServerEntries = Object.entries(serverParams);
 
-    console.log(
-      `[DEBUG-TOOLS] 📋 Processing ${allServerEntries.length} servers`,
-    );
-
     await Promise.allSettled(
       allServerEntries.map(async ([mcpServerUuid, params]) => {
-        console.log(`[DEBUG-TOOLS] 🔧 Server: ${params.name || mcpServerUuid}`);
-
         // Skip if we've already visited this server to prevent circular references
         if (visitedServers.has(mcpServerUuid)) {
-          console.log(
-            `[DEBUG-TOOLS] ⏭️  Skipping already visited: ${params.name}`,
-          );
           return;
         }
         const session = await mcpServerPool.getSession(
@@ -185,7 +181,6 @@ export const createServer = async (
           namespaceUuid,
         );
         if (!session) {
-          console.log(`[DEBUG-TOOLS] ❌ No session for: ${params.name}`);
           return;
         }
 
@@ -215,13 +210,20 @@ export const createServer = async (
         // Use name assigned by user, fallback to name from server
         const serverName =
           params.name || session.client.getServerVersion()?.name || "";
+        const toolFetchStart = performance.now();
 
         try {
+          logToolsListStarted({
+            context,
+            requestSource: "metamcp",
+            serverName,
+            serverUuid: mcpServerUuid,
+          });
+
           // Paginated tool discovery - load all pages automatically
           const allServerTools: Tool[] = [];
           let cursor: string | undefined = undefined;
           let hasMore = true;
-          const toolFetchStart = performance.now();
 
           while (hasMore) {
             const result: z.infer<typeof ListToolsResultSchema> =
@@ -244,10 +246,6 @@ export const createServer = async (
             hasMore = !!result.nextCursor;
           }
 
-          console.log(
-            `[DEBUG-TOOLS] ⏱️  Fetched ${allServerTools.length} tools from ${serverName} in ${(performance.now() - toolFetchStart).toFixed(2)}ms`,
-          );
-
           // Save original tools to database (before middleware processing)
           // This ensures we only save the actual tool names, not override names
           // Filter out tools that are overrides of existing tools to prevent duplicates
@@ -257,10 +255,6 @@ export const createServer = async (
             const hasChanged = toolsSyncCache.hasChanged(
               mcpServerUuid,
               toolNames,
-            );
-
-            console.log(
-              `[DEBUG-TOOLS] 🔍 Hash check for ${serverName}: ${hasChanged ? "CHANGED" : "UNCHANGED"}`,
             );
 
             if (hasChanged) {
@@ -293,6 +287,7 @@ export const createServer = async (
             const toolName = `${sanitizeName(serverName)}__${tool.name}`;
             toolToClient[toolName] = session;
             toolToServerUuid[toolName] = mcpServerUuid;
+            toolToServerName[toolName] = serverName;
 
             return {
               ...tool,
@@ -302,15 +297,30 @@ export const createServer = async (
           });
 
           allTools.push(...toolsWithSource);
+          logToolsListCompleted(
+            {
+              context,
+              requestSource: "metamcp",
+              serverName,
+              serverUuid: mcpServerUuid,
+            },
+            toolsWithSource.length,
+            toolFetchStart,
+          );
         } catch (error) {
+          logToolsListFailed(
+            {
+              context,
+              requestSource: "metamcp",
+              serverName,
+              serverUuid: mcpServerUuid,
+            },
+            toolFetchStart,
+            error,
+          );
           logger.error(`Error fetching tools from: ${serverName}`, error);
         }
       }),
-    );
-
-    const totalTime = performance.now() - startTime;
-    console.log(
-      `[DEBUG-TOOLS] ✅ tools/list completed in ${totalTime.toFixed(2)}ms, returning ${allTools.length} tools`,
     );
 
     return { tools: allTools };
@@ -334,6 +344,7 @@ export const createServer = async (
     // Try to find the tool in pre-populated mappings first
     let clientForTool = toolToClient[name];
     let serverUuid = toolToServerUuid[name];
+    let targetServerName = toolToServerName[name];
 
     // If not found in mappings, dynamically find the server and route the call
     if (!clientForTool || !serverUuid) {
@@ -387,8 +398,10 @@ export const createServer = async (
                     // Tool exists, populate mappings for future use and use it
                     clientForTool = session;
                     serverUuid = mcpServerUuid;
+                    targetServerName = serverName;
                     toolToClient[name] = session;
                     toolToServerUuid[name] = mcpServerUuid;
+                    toolToServerName[name] = serverName;
                     break;
                   }
 
@@ -415,14 +428,49 @@ export const createServer = async (
     }
 
     if (!clientForTool) {
+      logUnknownToolCall(
+        {
+          context: handlerContext,
+          requestSource: "metamcp",
+          serverName: targetServerName || serverPrefix,
+          toolName: originalToolName,
+        },
+        args || {},
+      );
       throw new Error(`Unknown tool: ${name}`);
     }
 
     if (!serverUuid) {
+      logUnknownToolCall(
+        {
+          context: handlerContext,
+          requestSource: "metamcp",
+          serverName: targetServerName || serverPrefix,
+          toolName: originalToolName,
+        },
+        args || {},
+      );
       throw new Error(`Server UUID not found for tool: ${name}`);
     }
 
+    const callStart = performance.now();
     try {
+      const resolvedServerName =
+        targetServerName ||
+        clientForTool.client.getServerVersion()?.name ||
+        serverPrefix;
+
+      logToolCallStarted(
+        {
+          context: handlerContext,
+          requestSource: "metamcp",
+          serverName: resolvedServerName,
+          serverUuid,
+          toolName: originalToolName,
+        },
+        args || {},
+      );
+
       const abortController = new AbortController();
 
       // Get configurable timeout values
@@ -452,8 +500,36 @@ export const createServer = async (
       );
 
       // Cast the result to CallToolResult type
-      return result as CallToolResult;
+      const callResult = result as CallToolResult;
+      logToolCallCompleted(
+        {
+          context: handlerContext,
+          requestSource: "metamcp",
+          serverName: resolvedServerName,
+          serverUuid,
+          toolName: originalToolName,
+        },
+        args || {},
+        callResult,
+        callStart,
+      );
+
+      return callResult;
     } catch (error) {
+      logToolCallFailed(
+        {
+          context: handlerContext,
+          requestSource: "metamcp",
+          serverName:
+            targetServerName ||
+            clientForTool.client.getServerVersion()?.name ||
+            serverPrefix,
+          serverUuid,
+          toolName: originalToolName,
+        },
+        callStart,
+        error,
+      );
       logger.error(
         `Error calling tool "${name}" through ${
           clientForTool.client.getServerVersion()?.name || "unknown"
