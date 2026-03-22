@@ -113,6 +113,8 @@ export async function convertDbServerToParams(
       url: server.url,
       created_at: server.created_at?.toISOString() || new Date().toISOString(),
       status: "active", // Default status for non-namespace servers
+      error_status: server.error_status?.toLowerCase(),
+      health_status: server.health_status?.toLowerCase(),
       stderr: "inherit" as const,
       oauth_tokens: oauthTokens,
       bearerToken: server.bearerToken,

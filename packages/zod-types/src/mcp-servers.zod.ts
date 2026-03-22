@@ -4,6 +4,11 @@ export const McpServerTypeEnum = z.enum(["STDIO", "SSE", "STREAMABLE_HTTP"]);
 export const McpServerStatusEnum = z.enum(["ACTIVE", "INACTIVE"]);
 
 export const McpServerErrorStatusEnum = z.enum(["NONE", "ERROR"]);
+export const McpServerHealthStatusEnum = z.enum([
+  "UNKNOWN",
+  "HEALTHY",
+  "UNHEALTHY",
+]);
 
 // Define the form schema (includes UI-specific fields)
 export const createServerFormSchema = z
@@ -191,6 +196,10 @@ export const McpServerSchema = z.object({
   headers: z.record(z.string()),
   user_id: z.string().nullable(),
   error_status: McpServerErrorStatusEnum.optional(),
+  health_status: McpServerHealthStatusEnum.optional(),
+  last_health_check_at: z.string().nullable().optional(),
+  last_health_check_error: z.string().nullable().optional(),
+  last_health_check_latency_ms: z.number().int().nullable().optional(),
 });
 
 export const CreateMcpServerResponseSchema = z.object({
@@ -458,6 +467,10 @@ export const DatabaseMcpServerSchema = z.object({
   env: z.record(z.string()),
   url: z.string().nullable(),
   error_status: McpServerErrorStatusEnum,
+  health_status: McpServerHealthStatusEnum,
+  last_health_check_at: z.date().nullable(),
+  last_health_check_error: z.string().nullable(),
+  last_health_check_latency_ms: z.number().int().nullable(),
   created_at: z.date(),
   bearerToken: z.string().nullable(),
   headers: z.record(z.string()),

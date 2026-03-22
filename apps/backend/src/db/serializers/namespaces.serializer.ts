@@ -47,6 +47,11 @@ export class NamespacesSerializer {
         bearerToken: server.bearerToken,
         headers: server.headers || {},
         error_status: server.error_status,
+        health_status: server.health_status,
+        last_health_check_at:
+          server.last_health_check_at?.toISOString() ?? null,
+        last_health_check_error: server.last_health_check_error,
+        last_health_check_latency_ms: server.last_health_check_latency_ms,
         created_at: server.created_at.toISOString(),
         user_id: server.user_id,
         status: server.status,

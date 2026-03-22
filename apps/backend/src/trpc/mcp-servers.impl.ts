@@ -25,6 +25,7 @@ import { mcpServerPool } from "../lib/metamcp/mcp-server-pool";
 import { clearOverrideCache } from "../lib/metamcp/metamcp-middleware/tool-overrides.functional";
 import { metaMcpServerPool } from "../lib/metamcp/metamcp-server-pool";
 import { serverErrorTracker } from "../lib/metamcp/server-error-tracker";
+import { resetServerHealth } from "../lib/metamcp/server-health-state";
 import { convertDbServerToParams } from "../lib/metamcp/utils";
 
 export const mcpServersImplementations = {
@@ -48,6 +49,8 @@ export const mcpServersImplementations = {
           message: "Failed to create MCP server",
         };
       }
+
+      await resetServerHealth(createdServer.uuid);
 
       // Ensure idle session for the newly created server (async)
       const serverParams = await convertDbServerToParams(createdServer);
@@ -151,6 +154,10 @@ export const mcpServersImplementations = {
         const createdServers =
           await mcpServersRepository.bulkCreate(serversToInsert);
         imported = serversToInsert.length;
+
+        await Promise.all(
+          createdServers.map((server) => resetServerHealth(server.uuid)),
+        );
 
         // Ensure idle sessions for all imported servers (async)
         if (createdServers && createdServers.length > 0) {
@@ -261,6 +268,7 @@ export const mcpServersImplementations = {
         };
       }
 
+      await resetServerHealth(server.uuid);
       await serverErrorTracker.resetServerErrorState(server.uuid);
 
       const serverParams = await convertDbServerToParams(server);
@@ -286,7 +294,9 @@ export const mcpServersImplementations = {
         });
       }
 
-      const refreshedServer = await mcpServersRepository.findByUuid(server.uuid);
+      const refreshedServer = await mcpServersRepository.findByUuid(
+        server.uuid,
+      );
 
       return {
         success: true as const,
@@ -440,6 +450,8 @@ export const mcpServersImplementations = {
           message: "MCP server not found",
         };
       }
+
+      await resetServerHealth(updatedServer.uuid);
 
       // Reset error status for stdio servers when they are updated
       if (updatedServer.type === McpServerTypeEnum.Enum.STDIO) {

@@ -9,7 +9,7 @@ import { StreamableHTTPClientTransport } from "@modelcontextprotocol/sdk/client/
 import { SSEServerTransport } from "@modelcontextprotocol/sdk/server/sse.js";
 import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/streamableHttp.js";
 import { Transport } from "@modelcontextprotocol/sdk/shared/transport.js";
-import { McpServerErrorStatusEnum, McpServerTypeEnum } from "@repo/zod-types";
+import { McpServerHealthStatusEnum, McpServerTypeEnum } from "@repo/zod-types";
 import express from "express";
 import { parse as shellParseArgs } from "shell-quote";
 import { findActualExecutable } from "spawn-rx";
@@ -18,7 +18,7 @@ import logger from "@/utils/logger";
 
 import { mcpServersRepository } from "../../db/repositories";
 import mcpProxy from "../../lib/mcp-proxy";
-import { transformDockerUrl } from "../../lib/metamcp/client";
+import { transformDockerUrl } from "../../lib/metamcp/client-factory";
 import { mcpServerPool } from "../../lib/metamcp/mcp-server-pool";
 import { resolveEnvVariables } from "../../lib/metamcp/utils";
 import { ProcessManagedStdioTransport } from "../../lib/stdio-transport/process-managed-transport";
@@ -125,8 +125,8 @@ const extractServerUuidFromStdioCommand = async (
   }
 };
 
-// Function to check if server is in error state
-const checkServerErrorStatus = async (serverUuid: string): Promise<boolean> => {
+// Function to check if a server is currently unavailable for direct proxying.
+const isServerUnavailable = async (serverUuid: string): Promise<boolean> => {
   try {
     const server = await mcpServersRepository.findByUuid(serverUuid);
     if (!server) {
@@ -134,15 +134,17 @@ const checkServerErrorStatus = async (serverUuid: string): Promise<boolean> => {
       return false;
     }
 
-    const isInError =
-      server.error_status === McpServerErrorStatusEnum.Enum.ERROR;
-    if (isInError) {
-      logger.info(`Server ${server.name} (${serverUuid}) is in ERROR state`);
+    const unavailable =
+      server.health_status === McpServerHealthStatusEnum.Enum.UNHEALTHY;
+    if (unavailable) {
+      logger.info(
+        `Server ${server.name} (${serverUuid}) is currently UNHEALTHY`,
+      );
     }
-    return isInError;
+    return unavailable;
   } catch (error) {
     logger.error(
-      `Error checking server error status for ${serverUuid}:`,
+      `Error checking server availability for ${serverUuid}:`,
       error,
     );
     return false;
@@ -261,13 +263,13 @@ const createTransport = async (req: express.Request): Promise<Transport> => {
       }
     }
 
-    // Check if the server is in error state
+    // Check if the server is currently unavailable
     const serverUuid = await extractServerUuidFromStdioCommand(cmd, args);
     if (serverUuid) {
-      const isInError = await checkServerErrorStatus(serverUuid);
-      if (isInError) {
+      const unavailable = await isServerUnavailable(serverUuid);
+      if (unavailable) {
         throw new Error(
-          `Server is in error state and cannot be connected to. Please check the server configuration and try again later.`,
+          `Server is currently unhealthy and cannot be connected to. Please retry after the health check recovers.`,
         );
       }
     }
@@ -295,16 +297,16 @@ const createTransport = async (req: express.Request): Promise<Transport> => {
   } else if (transportType === McpServerTypeEnum.Enum.SSE) {
     const url = transformDockerUrl(query.url as string);
 
-    // Check if the server is in error state (for SSE, we need to find server by URL)
+    // Check if the server is currently unavailable (for SSE, we need to find server by URL)
     const servers = await mcpServersRepository.findAll();
     const matchingServer = servers.find(
       (server) => server.type === "SSE" && server.url === url,
     );
     if (matchingServer) {
-      const isInError = await checkServerErrorStatus(matchingServer.uuid);
-      if (isInError) {
+      const unavailable = await isServerUnavailable(matchingServer.uuid);
+      if (unavailable) {
         throw new Error(
-          `Server is in error state and cannot be connected to. Please check the server configuration and try again later.`,
+          `Server is currently unhealthy and cannot be connected to. Please retry after the health check recovers.`,
         );
       }
     }
@@ -332,16 +334,16 @@ const createTransport = async (req: express.Request): Promise<Transport> => {
   } else if (transportType === McpServerTypeEnum.Enum.STREAMABLE_HTTP) {
     const url = transformDockerUrl(query.url as string);
 
-    // Check if the server is in error state (for STREAMABLE_HTTP, we need to find server by URL)
+    // Check if the server is currently unavailable (for STREAMABLE_HTTP, we need to find server by URL)
     const servers = await mcpServersRepository.findAll();
     const matchingServer = servers.find(
       (server) => server.type === "STREAMABLE_HTTP" && server.url === url,
     );
     if (matchingServer) {
-      const isInError = await checkServerErrorStatus(matchingServer.uuid);
-      if (isInError) {
+      const unavailable = await isServerUnavailable(matchingServer.uuid);
+      if (unavailable) {
         throw new Error(
-          `Server is in error state and cannot be connected to. Please check the server configuration and try again later.`,
+          `Server is currently unhealthy and cannot be connected to. Please retry after the health check recovers.`,
         );
       }
     }

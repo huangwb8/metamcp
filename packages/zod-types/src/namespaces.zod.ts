@@ -2,6 +2,7 @@ import { z } from "zod";
 
 import {
   McpServerErrorStatusEnum,
+  McpServerHealthStatusEnum,
   McpServerSchema,
   McpServerStatusEnum,
 } from "./mcp-servers.zod";
@@ -48,6 +49,7 @@ export const NamespaceSchema = z.object({
 export const NamespaceServerSchema = McpServerSchema.extend({
   status: McpServerStatusEnum,
   error_status: McpServerErrorStatusEnum.optional(),
+  health_status: McpServerHealthStatusEnum.optional(),
 });
 
 // Tool within namespace schema - extends ToolSchema with namespace-specific status and server info
@@ -302,6 +304,11 @@ export const DatabaseNamespaceServerSchema = z.object({
   env: z.record(z.string()),
   bearerToken: z.string().nullable(),
   headers: z.record(z.string()),
+  error_status: McpServerErrorStatusEnum,
+  health_status: McpServerHealthStatusEnum,
+  last_health_check_at: z.date().nullable(),
+  last_health_check_error: z.string().nullable(),
+  last_health_check_latency_ms: z.number().int().nullable(),
   created_at: z.date(),
   user_id: z.string().nullable(),
   status: McpServerStatusEnum,

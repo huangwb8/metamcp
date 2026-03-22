@@ -16,6 +16,7 @@
 - 新增中英文版本/镜像发布说明文档，记录 Docker Hub 变量、Secrets、标签策略与本地切换方式
 - 新增操作手册 `docs/自动推送到docker-hub.md`，提供 Docker Hub token、GitHub Secrets / Variables、Release 触发与本地切换镜像的逐步配置教程
 - 新增 MetaMCP 结构化活动日志字段与契约测试，可在共享日志模型中承载 `namespace/session/server/tool/duration/details` 等调用观测信息
+- 新增 MCP server 实时健康状态体系：后端定时健康检查、健康结果持久化字段与前端健康状态展示，支持把“最近错误”与“当前可用性”分开表达
 
 ### Changed（变更）
 
@@ -27,6 +28,7 @@
 - 更新 `docker-compose.yml` 与 `example.env`：为应用镜像新增 `METAMCP_IMAGE` 覆盖入口，在保留 GHCR 默认值的前提下支持无侵入切换到 Docker Hub release 镜像
 - 更新 `README.md`、`README_cn.md` 与 quickstart 文档：补充 Docker Hub 自动发布工作流、仓库配置要求和 compose 使用方式
 - 更新 `live-logs` 页面展示逻辑：除原始消息外，现可直接查看 MCP 激活、工具调用状态、工具名、耗时、会话/命名空间以及结构化 details
+- 更新 `mcp-servers` / `namespaces` 页面与 MetaMCP 聚合筛选逻辑：当前可连通性改为以 `health_status` 为准，原有 `error_status` 继续保留为故障痕迹与人工恢复语义
 
 ### Fixed（修复）
 
@@ -38,6 +40,7 @@
 - 修复 `@repo/trpc` 在生成声明文件时无法解析 workspace `@repo/zod-types` 类型的问题，恢复共享路由包的稳定构建
 - 修复 Docker 镜像 OCI 元数据仍硬编码指向上游仓库的问题，改为支持按当前 fork 注入正确的 source/vendor 信息
 - 修复 MetaMCP `live-logs` 无法判断 MCP 是否实际被调用的问题；现在会为连接、session 激活、`tools/list`、`tools/call`、成功/失败和错误产出可追踪日志
+- 修复 `mcp-servers` 里的 `error_status` 不能真实反映 MCP 服务当前可用性的问题；现在后台会自动探测并持久化健康结果，前端连接与工具管理也不再误把历史错误位当成实时在线状态
 
 ## [1.0.0] - 2026-03-21
 

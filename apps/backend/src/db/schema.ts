@@ -2,6 +2,7 @@ import { OAuthClientInformation } from "@modelcontextprotocol/sdk/shared/auth.js
 import { OAuthTokens } from "@modelcontextprotocol/sdk/shared/auth.js";
 import {
   McpServerErrorStatusEnum,
+  McpServerHealthStatusEnum,
   McpServerStatusEnum,
   McpServerTypeEnum,
 } from "@repo/zod-types";
@@ -31,6 +32,10 @@ export const mcpServerErrorStatusEnum = pgEnum(
   "mcp_server_error_status",
   McpServerErrorStatusEnum.options,
 );
+export const mcpServerHealthStatusEnum = pgEnum(
+  "mcp_server_health_status",
+  McpServerHealthStatusEnum.options,
+);
 
 export const mcpServersTable = pgTable(
   "mcp_servers",
@@ -54,6 +59,14 @@ export const mcpServersTable = pgTable(
     error_status: mcpServerErrorStatusEnum("error_status")
       .notNull()
       .default(McpServerErrorStatusEnum.Enum.NONE),
+    health_status: mcpServerHealthStatusEnum("health_status")
+      .notNull()
+      .default(McpServerHealthStatusEnum.Enum.UNKNOWN),
+    last_health_check_at: timestamp("last_health_check_at", {
+      withTimezone: true,
+    }),
+    last_health_check_error: text("last_health_check_error"),
+    last_health_check_latency_ms: integer("last_health_check_latency_ms"),
     created_at: timestamp("created_at", { withTimezone: true })
       .notNull()
       .defaultNow(),
@@ -70,6 +83,7 @@ export const mcpServersTable = pgTable(
     index("mcp_servers_type_idx").on(table.type),
     index("mcp_servers_user_id_idx").on(table.user_id),
     index("mcp_servers_error_status_idx").on(table.error_status),
+    index("mcp_servers_health_status_idx").on(table.health_status),
     // Allow same name for different users, but unique within user scope (including public)
     unique("mcp_servers_name_user_unique_idx").on(table.name, table.user_id),
     sql`CONSTRAINT mcp_servers_name_regex_check CHECK (

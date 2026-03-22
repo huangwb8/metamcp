@@ -176,6 +176,10 @@
     "toggleStatus": "{{name}} 상태 토글",
     "toggleTooFast": "토글이 너무 빠름",
     "toggleTooFastDescription": "충돌을 방지하기 위해 이 Server를 다시 토글하기 전에 잠시 기다려 주세요.",
+    "healthStatus": "건강 상태",
+    "healthy": "정상",
+    "unhealthy": "사용 불가",
+    "unknown": "미확인",
     "errorStatus": "오류 상태",
     "error": "오류",
     "noError": "오류 없음"

@@ -176,6 +176,10 @@
     "toggleStatus": "Toggle {{name}} status",
     "toggleTooFast": "Toggle Too Fast",
     "toggleTooFastDescription": "Please wait before toggling this server again to prevent conflicts.",
+    "healthStatus": "Health Status",
+    "healthy": "Healthy",
+    "unhealthy": "Unhealthy",
+    "unknown": "Unknown",
     "errorStatus": "Error Status",
     "error": "Error",
     "noError": "No Error"

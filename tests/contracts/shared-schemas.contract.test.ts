@@ -2,6 +2,9 @@ import {
   BulkImportMcpServerSchema,
   createServerFormSchema,
   MetaMcpLogEntrySchema,
+  McpServerHealthStatusEnum,
+  McpServerSchema,
+  NamespaceServerSchema,
   RefreshNamespaceToolsRequestSchema,
   UpdateNamespaceToolStatusRequestSchema,
 } from "../../packages/zod-types/src";
@@ -119,5 +122,41 @@ describe("shared MetaMCP schema contract", () => {
     expect(parsed.category).toBe("tool");
     expect(parsed.durationMs).toBe(128);
     expect(parsed.details?.argumentKeys).toEqual(["query"]);
+  });
+
+  it("exposes MCP server health fields in shared server schemas", () => {
+    const serverPayload = {
+      uuid: "server-1",
+      name: "health-aware-server",
+      description: "Tracks live health",
+      type: "STDIO",
+      command: "uvx",
+      args: ["mcp-server-time"],
+      env: {},
+      url: null,
+      created_at: new Date("2026-03-22T10:00:00.000Z").toISOString(),
+      bearerToken: null,
+      headers: {},
+      user_id: null,
+      error_status: "NONE",
+      health_status: "HEALTHY",
+      last_health_check_at: new Date("2026-03-22T10:01:00.000Z").toISOString(),
+      last_health_check_error: null,
+      last_health_check_latency_ms: 84,
+    } as const;
+
+    const parsedServer = McpServerSchema.parse(serverPayload);
+    const parsedNamespaceServer = NamespaceServerSchema.parse({
+      ...serverPayload,
+      status: "ACTIVE",
+    });
+
+    expect(parsedServer.health_status).toBe(
+      McpServerHealthStatusEnum.Enum.HEALTHY,
+    );
+    expect(parsedServer.last_health_check_latency_ms).toBe(84);
+    expect(parsedNamespaceServer.health_status).toBe(
+      McpServerHealthStatusEnum.Enum.HEALTHY,
+    );
   });
 });

@@ -12,6 +12,11 @@ export class McpServersSerializer {
       env: dbServer.env,
       url: dbServer.url,
       error_status: dbServer.error_status,
+      health_status: dbServer.health_status,
+      last_health_check_at:
+        dbServer.last_health_check_at?.toISOString() ?? null,
+      last_health_check_error: dbServer.last_health_check_error,
+      last_health_check_latency_ms: dbServer.last_health_check_latency_ms,
       created_at: dbServer.created_at.toISOString(),
       bearerToken: dbServer.bearerToken,
       headers: dbServer.headers,

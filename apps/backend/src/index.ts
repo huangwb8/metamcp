@@ -1,6 +1,7 @@
 import express from "express";
 
 import { auth } from "./auth";
+import { mcpServerHealthMonitor } from "./lib/metamcp/server-health-monitor";
 import {
   initializeIdleServers,
   initializeOnStartup,
@@ -120,6 +121,7 @@ async function start(): Promise<void> {
     }
 
     await initializeIdleServers();
+    mcpServerHealthMonitor.start();
   });
 }
 

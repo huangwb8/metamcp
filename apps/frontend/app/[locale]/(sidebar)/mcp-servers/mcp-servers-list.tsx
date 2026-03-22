@@ -3,6 +3,7 @@
 import {
   McpServer,
   McpServerErrorStatusEnum,
+  McpServerHealthStatusEnum,
   McpServerTypeEnum,
 } from "@repo/zod-types";
 import {
@@ -58,6 +59,10 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { useTranslations } from "@/hooks/useTranslations";
+import {
+  getMcpServerHealthBadgeVariant,
+  isMcpServerRetryable,
+} from "@/lib/mcp-server-health";
 import { trpc } from "@/lib/trpc";
 
 interface McpServersListProps {
@@ -89,7 +94,10 @@ export function McpServersList({ onRefresh }: McpServersListProps) {
     error,
     isLoading,
     refetch,
-  } = trpc.frontend.mcpServers.list.useQuery();
+  } = trpc.frontend.mcpServers.list.useQuery(undefined, {
+    refetchInterval: 30_000,
+    refetchOnWindowFocus: true,
+  });
 
   // tRPC mutation for deleting server
   const deleteServerMutation = trpc.frontend.mcpServers.delete.useMutation({
@@ -211,6 +219,38 @@ export function McpServersList({ onRefresh }: McpServersListProps) {
         return (
           <div className="px-3 py-2">
             <Badge variant="info">{type.toUpperCase()}</Badge>
+          </div>
+        );
+      },
+    },
+    {
+      accessorKey: "health_status",
+      size: 140,
+      header: ({ column }) => {
+        return (
+          <Button
+            variant="ghost"
+            onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
+          >
+            {t("mcp-servers:list.healthStatus")}
+            <ArrowUpDown className="ml-2 h-4 w-4" />
+          </Button>
+        );
+      },
+      cell: ({ row }) => {
+        const healthStatus =
+          (row.getValue("health_status") as string | undefined) ??
+          McpServerHealthStatusEnum.Enum.UNKNOWN;
+
+        return (
+          <div className="px-3 py-2">
+            <Badge variant={getMcpServerHealthBadgeVariant(healthStatus)}>
+              {healthStatus === McpServerHealthStatusEnum.Enum.HEALTHY
+                ? t("mcp-servers:list.healthy")
+                : healthStatus === McpServerHealthStatusEnum.Enum.UNHEALTHY
+                  ? t("mcp-servers:list.unhealthy")
+                  : t("mcp-servers:list.unknown")}
+            </Badge>
           </div>
         );
       },
@@ -442,7 +482,10 @@ export function McpServersList({ onRefresh }: McpServersListProps) {
                 <Edit className="mr-2 h-4 w-4" />
                 {t("mcp-servers:editServer")}
               </DropdownMenuItem>
-              {server.error_status === McpServerErrorStatusEnum.Enum.ERROR && (
+              {isMcpServerRetryable({
+                errorStatus: server.error_status,
+                healthStatus: server.health_status,
+              }) && (
                 <DropdownMenuItem onClick={handleRetryClick}>
                   <Server className="mr-2 h-4 w-4" />
                   {t("mcp-servers:detail.retry")}

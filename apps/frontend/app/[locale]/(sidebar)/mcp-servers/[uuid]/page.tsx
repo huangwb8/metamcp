@@ -3,6 +3,7 @@
 import {
   McpServer,
   McpServerErrorStatusEnum,
+  McpServerHealthStatusEnum,
   McpServerTypeEnum,
 } from "@repo/zod-types";
 import {
@@ -35,6 +36,11 @@ import {
 import { Skeleton } from "@/components/ui/skeleton";
 import { useConnection } from "@/hooks/useConnection";
 import { useTranslations } from "@/hooks/useTranslations";
+import {
+  getMcpServerHealthBadgeVariant,
+  isMcpServerRetryable,
+  isMcpServerUnhealthy,
+} from "@/lib/mcp-server-health";
 import { trpc } from "@/lib/trpc";
 
 import { ToolManagement } from "./components/tool-management";
@@ -104,7 +110,13 @@ export default function McpServerDetailPage({
     error,
     isLoading,
     refetch,
-  } = trpc.frontend.mcpServers.get.useQuery({ uuid });
+  } = trpc.frontend.mcpServers.get.useQuery(
+    { uuid },
+    {
+      refetchInterval: 30_000,
+      refetchOnWindowFocus: true,
+    },
+  );
 
   // tRPC mutation for deleting server
   const deleteMutation = trpc.frontend.mcpServers.delete.useMutation({
@@ -167,8 +179,14 @@ export default function McpServerDetailPage({
   const server: McpServer | undefined = serverResponse?.success
     ? serverResponse.data
     : undefined;
+  const isServerUnavailable = isMcpServerUnhealthy(server?.health_status);
+  const canRetryServer = isMcpServerRetryable({
+    errorStatus: server?.error_status,
+    healthStatus: server?.health_status,
+  });
 
-  // MCP Connection setup - only enable when server data is loaded and not in error state
+  // MCP Connection setup - only enable when server data is loaded and the latest
+  // health check has not marked the server as unavailable.
   const connection = useConnection({
     mcpServerUuid: uuid,
     transportType: server?.type || McpServerTypeEnum.Enum.STDIO,
@@ -183,11 +201,7 @@ export default function McpServerDetailPage({
     onStdErrNotification: (notification) => {
       console.error("MCP StdErr:", notification);
     },
-    enabled: Boolean(
-      server &&
-        !isLoading &&
-        server.error_status !== McpServerErrorStatusEnum.Enum.ERROR,
-    ),
+    enabled: Boolean(server && !isLoading && !isServerUnavailable),
   });
 
   // Auto-connect when hook is enabled and not already connected
@@ -196,12 +210,12 @@ export default function McpServerDetailPage({
       connection &&
       server &&
       !isLoading &&
-      server.error_status !== McpServerErrorStatusEnum.Enum.ERROR &&
+      !isServerUnavailable &&
       connection.connectionStatus === "disconnected"
     ) {
       connection.connect();
     }
-  }, [server, connection, isLoading]);
+  }, [server, connection, isLoading, isServerUnavailable]);
 
   // Handle delete server
   const handleDeleteServer = async () => {
@@ -217,7 +231,7 @@ export default function McpServerDetailPage({
 
   // Handle manual connect/disconnect
   const handleConnectionToggle = () => {
-    if (server?.error_status === McpServerErrorStatusEnum.Enum.ERROR) {
+    if (canRetryServer) {
       retryMutation.mutate({ uuid });
       return;
     }
@@ -230,10 +244,9 @@ export default function McpServerDetailPage({
 
   // Get connection status display info
   const getConnectionStatusInfo = () => {
-    // If server is in error state, show error status
-    if (server?.error_status === McpServerErrorStatusEnum.Enum.ERROR) {
+    if (isServerUnavailable) {
       return {
-        text: t("mcp-servers:detail.serverError"),
+        text: t("mcp-servers:detail.serverUnavailable"),
         color: "text-destructive",
         icon: Server,
       };
@@ -482,11 +495,11 @@ export default function McpServerDetailPage({
                   }
                   className="whitespace-nowrap flex-shrink-0"
                 >
-                  {server.error_status === McpServerErrorStatusEnum.Enum.ERROR
+                  {canRetryServer
                     ? t("mcp-servers:detail.retry")
                     : connection.connectionStatus === "connected"
-                    ? t("mcp-servers:detail.reconnect")
-                    : t("mcp-servers:detail.connect")}
+                      ? t("mcp-servers:detail.reconnect")
+                      : t("mcp-servers:detail.connect")}
                 </Button>
               </div>
             )}
@@ -529,6 +542,26 @@ export default function McpServerDetailPage({
                 </div>
                 <div className="flex justify-between items-center">
                   <span className="text-sm font-medium text-muted-foreground">
+                    {t("mcp-servers:detail.healthStatus")}:
+                  </span>
+                  <div className="flex-1 ml-6 flex justify-end">
+                    <Badge
+                      variant={getMcpServerHealthBadgeVariant(
+                        server.health_status,
+                      )}
+                    >
+                      {server.health_status ===
+                      McpServerHealthStatusEnum.Enum.HEALTHY
+                        ? t("mcp-servers:detail.healthy")
+                        : server.health_status ===
+                            McpServerHealthStatusEnum.Enum.UNHEALTHY
+                          ? t("mcp-servers:detail.unhealthy")
+                          : t("mcp-servers:detail.unknown")}
+                    </Badge>
+                  </div>
+                </div>
+                <div className="flex justify-between items-center">
+                  <span className="text-sm font-medium text-muted-foreground">
                     {t("mcp-servers:detail.errorStatus")}:
                   </span>
                   <div className="flex-1 ml-6 flex justify-end">
@@ -547,6 +580,39 @@ export default function McpServerDetailPage({
                     </Badge>
                   </div>
                 </div>
+                <div className="flex justify-between items-center">
+                  <span className="text-sm font-medium text-muted-foreground">
+                    {t("mcp-servers:detail.lastHealthCheck")}:
+                  </span>
+                  <p className="text-sm text-right flex-1 ml-6">
+                    {server.last_health_check_at
+                      ? `${new Date(server.last_health_check_at).toLocaleDateString()} ${new Date(server.last_health_check_at).toLocaleTimeString()}`
+                      : t("mcp-servers:detail.notCheckedYet")}
+                  </p>
+                </div>
+                <div className="flex justify-between items-center">
+                  <span className="text-sm font-medium text-muted-foreground">
+                    {t("mcp-servers:detail.healthLatency")}:
+                  </span>
+                  <p className="text-sm text-right flex-1 ml-6">
+                    {server.last_health_check_latency_ms !== null &&
+                    server.last_health_check_latency_ms !== undefined
+                      ? t("mcp-servers:detail.healthLatencyValue", {
+                          value: server.last_health_check_latency_ms,
+                        })
+                      : t("mcp-servers:detail.notAvailable")}
+                  </p>
+                </div>
+                {server.last_health_check_error && (
+                  <div className="space-y-2">
+                    <span className="text-sm font-medium text-muted-foreground">
+                      {t("mcp-servers:detail.lastHealthError")}:
+                    </span>
+                    <p className="text-sm bg-muted p-2 rounded break-all">
+                      {server.last_health_check_error}
+                    </p>
+                  </div>
+                )}
               </div>
             </div>
 
@@ -727,19 +793,19 @@ export default function McpServerDetailPage({
             <h3 className="text-lg font-semibold mb-4">
               {t("mcp-servers:detail.toolsManagement")}
             </h3>
-            {server.error_status === McpServerErrorStatusEnum.Enum.ERROR ? (
+            {isServerUnavailable ? (
               <div className="space-y-4">
                 <div className="rounded-lg border border-dashed p-8 text-center">
                   <div className="flex flex-col items-center justify-center mx-auto max-w-md">
                     <Server className="size-12 text-red-400" />
                     <h4 className="mt-4 text-lg font-semibold">
-                      {t("mcp-servers:detail.serverErrorTitle")}
+                      {t("mcp-servers:detail.serverUnavailableTitle")}
                     </h4>
                     <p className="mt-2 text-sm text-muted-foreground">
-                      {t("mcp-servers:detail.serverErrorDescription")}
+                      {t("mcp-servers:detail.serverUnavailableDescription")}
                     </p>
                     <p className="mt-1 text-xs text-muted-foreground">
-                      {t("mcp-servers:detail.fixServerErrorToManageTools")}
+                      {t("mcp-servers:detail.fixServerHealthToManageTools")}
                     </p>
                     <Button
                       className="mt-4"

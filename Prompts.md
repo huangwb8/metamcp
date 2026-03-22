@@ -3,7 +3,7 @@
 - 更新版本
 
 ```
-version=1.0.3
+version=1.0.4
 创建tag v{version}； 使用 git-commit skill 生成中文commit信息； 使用 git-publish-release skill 发布新版本，release note用中文。
 然后，重新build本机的huangwb8/metamcp image至最新版。
 ```
@@ -12,6 +12,10 @@ version=1.0.3
 - 根据 docs/plans/SDK-沙箱机制-v202602231445.md， 使用 [$awesome-code](/Users/bensz/.codex/skills/awesome-code/SKILL.md) 优化代码，所有问题都要解决，所有意见都要落实。 如果工作时有疑问，或者有更好的方案，自己选个最优方案优化，不要问我。 不要破坏其它功能。 要保证最终成品能正常、稳定、高效地工作。 
 
 # 日常
+
+---
+
+mcp-servers界面， 错误状态是否真的可以代表目前MCP服务器的可用状态？这个状态是多久刷新1次的？
 
 ---
 

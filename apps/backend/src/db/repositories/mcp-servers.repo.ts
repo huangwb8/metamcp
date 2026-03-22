@@ -2,6 +2,7 @@ import {
   DatabaseMcpServer,
   McpServerCreateInput,
   McpServerErrorStatusEnum,
+  McpServerHealthStatusEnum,
   McpServerUpdateInput,
 } from "@repo/zod-types";
 import { and, desc, eq, isNull, or } from "drizzle-orm";
@@ -247,6 +248,37 @@ export class McpServersRepository {
       .returning();
 
     return updatedServer;
+  }
+
+  async updateServerHealthStatus(input: {
+    serverUuid: string;
+    healthStatus: z.infer<typeof McpServerHealthStatusEnum>;
+    checkedAt?: Date | null;
+    error?: string | null;
+    latencyMs?: number | null;
+  }) {
+    const [updatedServer] = await db
+      .update(mcpServersTable)
+      .set({
+        health_status: input.healthStatus,
+        last_health_check_at: input.checkedAt ?? null,
+        last_health_check_error: input.error ?? null,
+        last_health_check_latency_ms: input.latencyMs ?? null,
+      })
+      .where(eq(mcpServersTable.uuid, input.serverUuid))
+      .returning();
+
+    return updatedServer;
+  }
+
+  async resetServerHealthStatus(serverUuid: string) {
+    return await this.updateServerHealthStatus({
+      serverUuid,
+      healthStatus: McpServerHealthStatusEnum.Enum.UNKNOWN,
+      checkedAt: null,
+      error: null,
+      latencyMs: null,
+    });
   }
 }
 

@@ -52,7 +52,13 @@ export default function NamespaceDetailPage({
     error,
     isLoading,
     refetch,
-  } = trpc.frontend.namespaces.get.useQuery({ uuid });
+  } = trpc.frontend.namespaces.get.useQuery(
+    { uuid },
+    {
+      refetchInterval: 30_000,
+      refetchOnWindowFocus: true,
+    },
+  );
 
   // tRPC mutation for deleting namespace
   const deleteMutation = trpc.frontend.namespaces.delete.useMutation({

@@ -2,6 +2,7 @@
 
 import {
   McpServerErrorStatusEnum,
+  McpServerHealthStatusEnum,
   McpServerTypeEnum,
   NamespaceServer,
 } from "@repo/zod-types";
@@ -48,6 +49,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { useTranslations } from "@/hooks/useTranslations";
+import { getMcpServerHealthBadgeVariant } from "@/lib/mcp-server-health";
 import { trpc } from "@/lib/trpc";
 
 interface NamespaceServersTableProps {
@@ -258,6 +260,37 @@ export function NamespaceServersTable({
                 })}
               />
             </div>
+          </div>
+        );
+      },
+    },
+    {
+      accessorKey: "health_status",
+      header: ({ column }) => {
+        return (
+          <Button
+            variant="ghost"
+            onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
+          >
+            {t("namespaces:serversTable.healthStatus")}
+            <ArrowUpDown className="ml-2 h-4 w-4" />
+          </Button>
+        );
+      },
+      cell: ({ row }) => {
+        const healthStatus =
+          (row.getValue("health_status") as string | undefined) ??
+          McpServerHealthStatusEnum.Enum.UNKNOWN;
+
+        return (
+          <div className="px-3 py-2">
+            <Badge variant={getMcpServerHealthBadgeVariant(healthStatus)}>
+              {healthStatus === McpServerHealthStatusEnum.Enum.HEALTHY
+                ? t("namespaces:serversTable.healthy")
+                : healthStatus === McpServerHealthStatusEnum.Enum.UNHEALTHY
+                  ? t("namespaces:serversTable.unhealthy")
+                  : t("namespaces:serversTable.unknown")}
+            </Badge>
           </div>
         );
       },

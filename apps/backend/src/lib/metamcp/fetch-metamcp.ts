@@ -1,5 +1,5 @@
 import {
-  McpServerErrorStatusEnum,
+  McpServerHealthStatusEnum,
   McpServerStatusEnum,
   ServerParameters,
 } from "@repo/zod-types";
@@ -35,9 +35,9 @@ export async function getMcpServers(
       );
     }
 
-    // Always exclude servers with ERROR status (these are crashed servers)
+    // Only route traffic to servers that passed the latest health check.
     whereConditions.push(
-      eq(mcpServersTable.error_status, McpServerErrorStatusEnum.Enum.NONE),
+      eq(mcpServersTable.health_status, McpServerHealthStatusEnum.Enum.HEALTHY),
     );
 
     // Fetch MCP servers for the specific namespace using a join query
@@ -56,6 +56,7 @@ export async function getMcpServers(
         headers: mcpServersTable.headers,
         status: namespaceServerMappingsTable.status,
         error_status: mcpServersTable.error_status,
+        health_status: mcpServersTable.health_status,
       })
       .from(mcpServersTable)
       .innerJoin(
@@ -96,6 +97,7 @@ export async function getMcpServers(
           server.created_at?.toISOString() || new Date().toISOString(),
         status: server.status.toLowerCase(),
         error_status: server.error_status?.toLowerCase(),
+        health_status: server.health_status?.toLowerCase(),
         stderr: "inherit" as IOType,
         oauth_tokens: oauthTokens,
         bearerToken: server.bearerToken,

@@ -1,18 +1,15 @@
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
-import { SSEClientTransport } from "@modelcontextprotocol/sdk/client/sse.js";
-import { StdioServerParameters } from "@modelcontextprotocol/sdk/client/stdio.js";
-import { StreamableHTTPClientTransport } from "@modelcontextprotocol/sdk/client/streamableHttp.js";
 import { Transport } from "@modelcontextprotocol/sdk/shared/transport.js";
 import { ServerParameters } from "@repo/zod-types";
 
 import logger from "@/utils/logger";
 
 import { ProcessManagedStdioTransport } from "../stdio-transport/process-managed-transport";
+import { createMetaMcpClient } from "./client-factory";
 import { metamcpLogStore } from "./log-store";
 import { getElapsedDurationMs } from "./observability";
 import { serverErrorTracker } from "./server-error-tracker";
-import { classifyStderrMessage } from "./stderr-log-classification";
-import { resolveEnvVariables } from "./utils";
+import { markServerHealthy, markServerUnhealthy } from "./server-health-state";
 
 const sleep = (time: number) =>
   new Promise<void>((resolve) => setTimeout(() => resolve(), time));
@@ -34,173 +31,6 @@ export interface ConnectedClient {
   onProcessCrash?: (exitCode: number | null, signal: string | null) => void;
 }
 
-/**
- * Transforms localhost URLs to use host.docker.internal when running inside Docker
- */
-export const transformDockerUrl = (url: string): string => {
-  if (process.env.TRANSFORM_LOCALHOST_TO_DOCKER_INTERNAL === "true") {
-    const transformed = url.replace(
-      /localhost|127\.0\.0\.1/g,
-      "host.docker.internal",
-    );
-    return transformed;
-  }
-  return url;
-};
-
-export const createMetaMcpClient = (
-  serverParams: ServerParameters,
-): { client: Client | undefined; transport: Transport | undefined } => {
-  let transport: Transport | undefined;
-
-  // Create the appropriate transport based on server type
-  // Default to "STDIO" if type is undefined
-  if (!serverParams.type || serverParams.type === "STDIO") {
-    // Resolve environment variable placeholders
-    const resolvedEnv = serverParams.env
-      ? resolveEnvVariables(serverParams.env)
-      : undefined;
-
-    const stdioParams: StdioServerParameters = {
-      command: serverParams.command || "",
-      args: serverParams.args || undefined,
-      env: resolvedEnv,
-      stderr: "pipe",
-    };
-    transport = new ProcessManagedStdioTransport(stdioParams);
-
-    // Handle stderr stream when set to "pipe"
-    if ((transport as ProcessManagedStdioTransport).stderr) {
-      const stderrStream = (transport as ProcessManagedStdioTransport).stderr;
-
-      stderrStream?.on("data", (chunk: Buffer) => {
-        const stderrEntry = classifyStderrMessage(chunk.toString());
-
-        if (!stderrEntry) {
-          return;
-        }
-
-        metamcpLogStore.addLog(
-          serverParams.name,
-          stderrEntry.level,
-          stderrEntry.message,
-          undefined,
-          {
-            category: "server",
-            event: stderrEntry.event,
-            status: stderrEntry.status,
-            serverUuid: serverParams.uuid,
-          },
-        );
-      });
-
-      stderrStream?.on("error", (error: Error) => {
-        metamcpLogStore.addLog(
-          serverParams.name,
-          "error",
-          "stderr error",
-          error,
-          {
-            category: "server",
-            event: "stderr",
-            status: "error",
-            serverUuid: serverParams.uuid,
-          },
-        );
-      });
-    }
-  } else if (serverParams.type === "SSE" && serverParams.url) {
-    // Transform the URL if TRANSFORM_LOCALHOST_TO_DOCKER_INTERNAL is set to "true"
-    const transformedUrl = transformDockerUrl(serverParams.url);
-
-    // Build headers: start with custom headers, then add auth header
-    const headers: Record<string, string> = {
-      ...(serverParams.headers || {}),
-    };
-
-    // Check for authentication - prioritize OAuth tokens, fallback to bearerToken
-    const authToken =
-      serverParams.oauth_tokens?.access_token || serverParams.bearerToken;
-    if (authToken) {
-      headers["Authorization"] = `Bearer ${authToken}`;
-    }
-
-    const hasHeaders = Object.keys(headers).length > 0;
-
-    if (!hasHeaders) {
-      transport = new SSEClientTransport(new URL(transformedUrl));
-    } else {
-      transport = new SSEClientTransport(new URL(transformedUrl), {
-        requestInit: {
-          headers,
-        },
-        eventSourceInit: {
-          fetch: (url, init) => fetch(url, { ...init, headers }),
-        },
-      });
-    }
-  } else if (serverParams.type === "STREAMABLE_HTTP" && serverParams.url) {
-    // Transform the URL if TRANSFORM_LOCALHOST_TO_DOCKER_INTERNAL is set to "true"
-    const transformedUrl = transformDockerUrl(serverParams.url);
-
-    // Build headers: start with custom headers, then add auth header
-    const headers: Record<string, string> = {
-      ...(serverParams.headers || {}),
-    };
-
-    // Check for authentication - prioritize OAuth tokens, fallback to bearerToken
-    const authToken =
-      serverParams.oauth_tokens?.access_token || serverParams.bearerToken;
-    if (authToken) {
-      headers["Authorization"] = `Bearer ${authToken}`;
-    }
-
-    const hasHeaders = Object.keys(headers).length > 0;
-
-    if (!hasHeaders) {
-      transport = new StreamableHTTPClientTransport(new URL(transformedUrl));
-    } else {
-      transport = new StreamableHTTPClientTransport(new URL(transformedUrl), {
-        requestInit: {
-          headers,
-        },
-      });
-    }
-  } else {
-    metamcpLogStore.addLog(
-      serverParams.name,
-      "error",
-      `Unsupported server type: ${serverParams.type}`,
-      undefined,
-      {
-        category: "server",
-        event: "connect",
-        status: "error",
-        serverUuid: serverParams.uuid,
-        details: {
-          transportType: serverParams.type || "unknown",
-        },
-      },
-    );
-    return { client: undefined, transport: undefined };
-  }
-
-  const client = new Client(
-    {
-      name: "metamcp-client",
-      version: "2.0.0",
-    },
-    {
-      capabilities: {
-        prompts: {},
-        resources: { subscribe: true },
-        tools: {},
-      },
-    },
-  );
-  return { client, transport };
-};
-
 export const connectMetaMcpClient = async (
   serverParams: ServerParameters,
   onProcessCrash?: (exitCode: number | null, signal: string | null) => void,
@@ -211,6 +41,7 @@ export const connectMetaMcpClient = async (
   );
   let count = 0;
   let retry = true;
+  let lastConnectionError: unknown;
 
   logger.info(
     `Connecting to server ${serverParams.name} (${serverParams.uuid}) with max attempts: ${maxAttempts}`,
@@ -287,6 +118,9 @@ export const connectMetaMcpClient = async (
 
       await client.connect(transport);
       await serverErrorTracker.recordSuccessfulConnection(serverParams.uuid);
+      void markServerHealthy({
+        serverUuid: serverParams.uuid,
+      });
       const durationMs = getElapsedDurationMs(connectionStart);
 
       metamcpLogStore.addLog(
@@ -311,8 +145,12 @@ export const connectMetaMcpClient = async (
       return {
         client,
         cleanup: async () => {
-          await transport!.close();
-          await client!.close();
+          if (transport) {
+            await transport.close();
+          }
+          if (client) {
+            await client.close();
+          }
         },
         onProcessCrash: (exitCode, signal) => {
           logger.warn(
@@ -326,6 +164,7 @@ export const connectMetaMcpClient = async (
         },
       };
     } catch (error) {
+      lastConnectionError = error;
       metamcpLogStore.addLog(
         serverParams.name,
         "error",
@@ -363,7 +202,7 @@ export const connectMetaMcpClient = async (
       if (client) {
         try {
           await client.close();
-        } catch (cleanupError) {
+        } catch (_cleanupError) {
           // Client may not be fully initialized, ignore
         }
       }
@@ -375,6 +214,14 @@ export const connectMetaMcpClient = async (
       }
     }
   }
+
+  void markServerUnhealthy({
+    serverUuid: serverParams.uuid,
+    error:
+      lastConnectionError instanceof Error
+        ? lastConnectionError.message
+        : "Failed to connect to MCP server",
+  });
 
   return undefined;
 };
