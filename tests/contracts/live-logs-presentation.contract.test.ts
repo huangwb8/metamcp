@@ -39,6 +39,16 @@ describe("live logs presentation contract", () => {
     expect(
       getLogFilterId(
         buildLog({
+          level: "warn",
+          event: "stderr",
+          status: "stderr",
+        }),
+      ),
+    ).toBe("stderr");
+
+    expect(
+      getLogFilterId(
+        buildLog({
           level: "info",
           status: "success",
         }),
@@ -67,15 +77,22 @@ describe("live logs presentation contract", () => {
     const logs = [
       buildLog({ id: "error", level: "error" }),
       buildLog({ id: "warning", level: "warn" }),
+      buildLog({
+        id: "stderr",
+        level: "warn",
+        event: "stderr",
+        status: "stderr",
+      }),
       buildLog({ id: "success", status: "success" }),
       buildLog({ id: "activity", status: "started" }),
       buildLog({ id: "info" }),
     ];
 
     expect(getLogFilterCounts(logs)).toEqual({
-      all: 5,
+      all: 6,
       error: 1,
       warning: 1,
+      stderr: 1,
       success: 1,
       activity: 1,
       info: 1,
@@ -83,6 +100,9 @@ describe("live logs presentation contract", () => {
 
     expect(filterLogsByCategory(logs, "error").map((log) => log.id)).toEqual([
       "error",
+    ]);
+    expect(filterLogsByCategory(logs, "stderr").map((log) => log.id)).toEqual([
+      "stderr",
     ]);
     expect(filterLogsByCategory(logs, "activity").map((log) => log.id)).toEqual(
       ["activity"],

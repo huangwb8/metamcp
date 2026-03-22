@@ -44,6 +44,7 @@
   "copyJsonSuccess": "日志 JSON 已复制到剪贴板",
   "copyJsonError": "复制日志 JSON 失败",
   "error": "错误",
+  "stderr": "标准错误",
   "warning": "警告",
   "info": "信息",
   "success": "成功",

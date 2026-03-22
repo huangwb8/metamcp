@@ -11,6 +11,7 @@ import { ProcessManagedStdioTransport } from "../stdio-transport/process-managed
 import { metamcpLogStore } from "./log-store";
 import { getElapsedDurationMs } from "./observability";
 import { serverErrorTracker } from "./server-error-tracker";
+import { classifyStderrMessage } from "./stderr-log-classification";
 import { resolveEnvVariables } from "./utils";
 
 const sleep = (time: number) =>
@@ -73,15 +74,21 @@ export const createMetaMcpClient = (
       const stderrStream = (transport as ProcessManagedStdioTransport).stderr;
 
       stderrStream?.on("data", (chunk: Buffer) => {
+        const stderrEntry = classifyStderrMessage(chunk.toString());
+
+        if (!stderrEntry) {
+          return;
+        }
+
         metamcpLogStore.addLog(
           serverParams.name,
-          "error",
-          chunk.toString().trim(),
+          stderrEntry.level,
+          stderrEntry.message,
           undefined,
           {
             category: "server",
-            event: "stderr",
-            status: "error",
+            event: stderrEntry.event,
+            status: stderrEntry.status,
             serverUuid: serverParams.uuid,
           },
         );

@@ -3,6 +3,7 @@ import type { MetaMcpLogEntry } from "@repo/zod-types";
 export const LOG_FILTER_IDS = [
   "all",
   "error",
+  "stderr",
   "warning",
   "success",
   "activity",
@@ -16,6 +17,10 @@ export const getLogFilterId = (
 ): Exclude<LogFilterId, "all"> => {
   if (log.level === "error" || log.status === "error" || log.error) {
     return "error";
+  }
+
+  if (log.event === "stderr" || log.status === "stderr") {
+    return "stderr";
   }
 
   if (log.level === "warn") {
@@ -48,6 +53,7 @@ export const getLogFilterCounts = (logs: MetaMcpLogEntry[]) => {
   const counts: Record<LogFilterId, number> = {
     all: logs.length,
     error: 0,
+    stderr: 0,
     warning: 0,
     success: 0,
     activity: 0,

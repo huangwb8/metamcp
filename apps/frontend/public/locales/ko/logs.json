@@ -44,6 +44,7 @@
   "copyJsonSuccess": "로그 JSON이 클립보드에 복사되었습니다",
   "copyJsonError": "로그 JSON 복사에 실패했습니다",
   "error": "오류",
+  "stderr": "표준 오류",
   "warning": "경고",
   "info": "정보",
   "success": "성공",

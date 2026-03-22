@@ -44,6 +44,7 @@
   "copyJsonSuccess": "Log JSON copied to clipboard",
   "copyJsonError": "Failed to copy log JSON",
   "error": "Error",
+  "stderr": "StdErr",
   "warning": "Warning",
   "info": "Info",
   "success": "Success",

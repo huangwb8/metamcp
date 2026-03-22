@@ -30,6 +30,7 @@
 
 ### Fixed（修复）
 
+- 修复 MetaMCP 会把大量普通 `STDIO stderr` 内容直接记为 `error` 的问题；现在普通 `stderr` 会作为独立 `stderr` 日志语义展示并默认降为 warning，真正的启动失败/连接异常仍保持 `error`，从而降低 Live Logs 假阳性并保留排障信息
 - 修复 OpenAPI MCP 执行链路中的日志缺口与变量引用问题；之前部分工具执行和 OpenAPI 会话激活只写入文件日志或存在未定义 `serverUuid`，导致 Live Logs 看不到完整执行过程
 - 修复 MCP server `ERROR` 状态会被数据库残留值永久锁死的问题；现在重启后允许自动再次尝试，成功连接会自动清除错误状态
 - 修复 MCP server 错误状态恢复链路不完整的问题；新增服务级手动重试接口和前端入口，无需再手动改数据库才能触发恢复

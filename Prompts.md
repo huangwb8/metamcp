@@ -3,7 +3,7 @@
 - 更新版本
 
 ```
-version=1.0.2
+version=1.0.3
 创建tag v{version}； 使用 git-commit skill 生成中文commit信息； 使用 git-publish-release skill 发布新版本，release note用中文。
 然后，重新build本机的huangwb8/metamcp image至最新版。
 ```

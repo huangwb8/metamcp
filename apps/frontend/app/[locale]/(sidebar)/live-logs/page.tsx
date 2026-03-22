@@ -54,12 +54,16 @@ const STATUS_STYLES: Record<string, string> = {
   success:
     "border-emerald-500/20 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300",
   error: "border-red-500/20 bg-red-500/10 text-red-700 dark:text-red-300",
+  stderr:
+    "border-amber-500/20 bg-amber-500/10 text-amber-700 dark:text-amber-300",
 };
 
 const FILTER_STYLES: Record<LogFilterId, string> = {
   all: "border-border/60 text-muted-foreground hover:text-foreground",
   error:
     "border-red-500/20 text-red-700 hover:text-red-800 dark:text-red-300 dark:hover:text-red-200",
+  stderr:
+    "border-orange-500/20 text-orange-700 hover:text-orange-800 dark:text-orange-300 dark:hover:text-orange-200",
   warning:
     "border-amber-500/20 text-amber-700 hover:text-amber-800 dark:text-amber-300 dark:hover:text-amber-200",
   success:
@@ -72,6 +76,8 @@ const FILTER_STYLES: Record<LogFilterId, string> = {
 const ACTIVE_FILTER_STYLES: Record<LogFilterId, string> = {
   all: "border-foreground/15 bg-foreground/5 text-foreground",
   error: "border-red-500/25 bg-red-500/12 text-red-700 dark:text-red-300",
+  stderr:
+    "border-orange-500/25 bg-orange-500/12 text-orange-700 dark:text-orange-300",
   warning:
     "border-amber-500/25 bg-amber-500/12 text-amber-700 dark:text-amber-300",
   success:
@@ -83,6 +89,7 @@ const ACTIVE_FILTER_STYLES: Record<LogFilterId, string> = {
 
 const ROW_ACCENT_STYLES: Record<Exclude<LogFilterId, "all">, string> = {
   error: "before:bg-red-500",
+  stderr: "before:bg-orange-500",
   warning: "before:bg-amber-500",
   success: "before:bg-emerald-500",
   activity: "before:bg-blue-500",
@@ -216,6 +223,8 @@ export default function LiveLogsPage() {
         return t("logs:all");
       case "error":
         return t("logs:error");
+      case "stderr":
+        return t("logs:stderr");
       case "warning":
         return t("logs:warning");
       case "success":
